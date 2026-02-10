@@ -54,6 +54,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ isOpen, onClos
     e.preventDefault();
     if (!description || !amount || !category) return;
 
+    // Construct object avoiding undefined values for Firestore
     const newTransaction: Transaction = {
       id: initialData?.id || crypto.randomUUID(),
       description,
@@ -62,8 +63,12 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ isOpen, onClos
       type,
       category,
       status: type === TransactionType.CARD_EXPENSE ? TransactionStatus.COMPLETED : status,
-      cardId: type === TransactionType.CARD_EXPENSE ? cardId : undefined,
     };
+
+    // Only add cardId if explicitly a CARD_EXPENSE
+    if (type === TransactionType.CARD_EXPENSE) {
+      newTransaction.cardId = cardId;
+    }
 
     onSubmit(newTransaction, installments, amountType);
     onClose();

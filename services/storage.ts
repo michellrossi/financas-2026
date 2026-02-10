@@ -53,6 +53,16 @@ export const getInvoiceMonth = (date: Date, closingDay: number): Date => {
   return d;
 };
 
+// Helper to remove undefined keys which Firestore rejects
+const cleanPayload = (data: any) => {
+  return Object.entries(data).reduce((acc, [k, v]) => {
+    if (v !== undefined) {
+      acc[k] = v;
+    }
+    return acc;
+  }, {} as any);
+};
+
 export const generateInstallments = (baseTransaction: Transaction, totalInstallments: number, amountType: 'total' | 'installment' = 'installment'): Transaction[] => {
   if (totalInstallments <= 1) return [baseTransaction];
 
@@ -135,13 +145,15 @@ export const StorageService = {
 
   addTransaction: async (userId: string, t: Transaction) => {
     const { id, ...data } = t; 
-    await addDoc(collection(db, "transactions"), { ...data, userId });
+    const payload = cleanPayload({ ...data, userId });
+    await addDoc(collection(db, "transactions"), payload);
   },
 
   updateTransaction: async (userId: string, t: Transaction) => {
     const { id, ...data } = t;
     const ref = doc(db, "transactions", id);
-    await updateDoc(ref, data);
+    const payload = cleanPayload(data);
+    await updateDoc(ref, payload);
   },
 
   deleteTransaction: async (userId: string, id: string) => {
@@ -165,13 +177,15 @@ export const StorageService = {
 
   addCard: async (userId: string, c: CreditCard) => {
     const { id, ...data } = c;
-    await addDoc(collection(db, "cards"), { ...data, userId });
+    const payload = cleanPayload({ ...data, userId });
+    await addDoc(collection(db, "cards"), payload);
   },
 
   updateCard: async (userId: string, c: CreditCard) => {
     const { id, ...data } = c;
     const ref = doc(db, "cards", id);
-    await updateDoc(ref, data);
+    const payload = cleanPayload(data);
+    await updateDoc(ref, payload);
   },
 
   deleteCard: async (userId: string, id: string) => {
