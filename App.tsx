@@ -136,17 +136,33 @@ function App() {
   };
 
   const handleBatchTransactions = async (newTransactions: Transaction[]) => {
-    if (!user) return;
+    console.log("🟢 handleBatchTransactions CHAMADO!");
+    console.log("🟢 Transações recebidas:", newTransactions);
+    console.log("🟢 Quantidade:", newTransactions.length);
+    console.log("🟢 User:", user);
+    
+    if (!user) {
+      console.log("❌ SEM USUÁRIO - ABORTANDO");
+      return;
+    }
+    
     setLoading(true);
+    
     try {
+      console.log("🟢 Iniciando salvamento no Firestore...");
       for (const t of newTransactions) {
+        console.log("🟢 Salvando transação:", t.description);
         await StorageService.addTransaction(user.id, t);
+        console.log("✅ Transação salva:", t.description);
       }
+      console.log("🟢 Todas as transações salvas! Recarregando dados...");
       fetchData(user.id);
+      console.log("🟢 fetchData chamado!");
     } catch (e) {
-      console.error(e);
+      console.error("❌ ERRO ao salvar transações:", e);
     } finally {
       setLoading(false);
+      console.log("🟢 handleBatchTransactions CONCLUÍDO!");
     }
   };
 
