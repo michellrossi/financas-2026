@@ -56,7 +56,7 @@ export const Transactions: React.FC<TransactionsProps> = ({
   };
 
   return (
-    <div className="space-y-4 animate-fade-in">
+    <div className="space-y-4 animate-fade-in pb-12 md:pb-0">
       
       {/* Header Sort Toggle */}
       <div className="flex justify-end mb-2">
@@ -89,10 +89,10 @@ export const Transactions: React.FC<TransactionsProps> = ({
           const isVirtual = t.isVirtual === true;
           
           return (
-            <div key={t.id} className={`bg-white rounded-2xl p-4 flex flex-row items-center justify-between shadow-sm border ${isVirtual ? 'border-indigo-100 bg-indigo-50/30' : 'border-slate-100'} hover:shadow-md transition-all gap-4`}>
+            <div key={t.id} className={`bg-white rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between shadow-sm border ${isVirtual ? 'border-indigo-100 bg-indigo-50/30' : 'border-slate-100'} hover:shadow-md transition-all gap-4`}>
               
               {/* Left Section: Icon & Details */}
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4 w-full sm:w-auto min-w-0">
                   <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${
                     t.type === TransactionType.INCOME ? 'bg-emerald-50 text-emerald-500' :
                     isVirtual ? 'bg-indigo-100 text-indigo-600' :
@@ -102,33 +102,33 @@ export const Transactions: React.FC<TransactionsProps> = ({
                      isVirtual ? <Receipt size={24} /> : <ArrowDown size={24} />}
                   </div>
 
-                  <div className="flex flex-col gap-1">
-                    <span className="font-bold text-slate-800 text-base flex items-center gap-2">
-                        {t.description}
-                        {isVirtual && <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded uppercase">Fatura</span>}
+                  <div className="flex flex-col gap-1 min-w-0 flex-1">
+                    <span className="font-bold text-slate-800 text-base flex items-center gap-2 truncate">
+                        <span className="truncate">{t.description}</span>
+                        {isVirtual && <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded uppercase shrink-0">Fatura</span>}
                     </span>
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className="text-slate-400">{format(new Date(t.date), 'dd/MM/yyyy')}</span>
-                      <span className="px-2 py-0.5 bg-slate-100 rounded text-slate-500 uppercase font-semibold text-[10px] tracking-wide">{t.category}</span>
+                    <div className="flex items-center flex-wrap gap-2 text-xs">
+                      <span className="text-slate-400 shrink-0">{format(new Date(t.date), 'dd/MM/yyyy')}</span>
+                      <span className="px-2 py-0.5 bg-slate-100 rounded text-slate-500 uppercase font-semibold text-[10px] tracking-wide truncate max-w-[120px]">{t.category}</span>
                       {t.installments && (
-                        <span className="text-slate-400">({t.installments.current}/{t.installments.total})</span>
+                        <span className="text-slate-400 shrink-0">({t.installments.current}/{t.installments.total})</span>
                       )}
                     </div>
                   </div>
               </div>
 
-              {/* Right Section: Amount & Actions (Vertical Stack) */}
-              <div className="flex flex-col items-end gap-2">
+              {/* Right Section: Amount & Actions */}
+              <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto gap-2 sm:gap-2 mt-2 sm:mt-0 pl-[4rem] sm:pl-0">
                   <span className={`text-xl font-bold whitespace-nowrap ${
                     t.type === TransactionType.INCOME ? 'text-emerald-500' : 'text-slate-700'
                   }`}>
                     {t.type === TransactionType.INCOME ? '+ ' : ''} {formatCurrency(t.amount)}
                   </span>
                   
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     <button 
                       onClick={() => onToggleStatus(t.id)}
-                      className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors border ${statusInfo.style} hover:opacity-80 active:scale-95`}
+                      className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors border ${statusInfo.style} hover:opacity-80 active:scale-95 whitespace-nowrap`}
                       title={isVirtual ? "Marcar todas as despesas desta fatura como pagas/pendentes" : "Alternar status"}
                     >
                         {statusInfo.label}
@@ -136,16 +136,16 @@ export const Transactions: React.FC<TransactionsProps> = ({
                     
                     {!isVirtual && (
                         <>
-                        <button onClick={() => onEdit(t)} className="text-slate-400 hover:text-blue-500 transition-colors">
+                        <button onClick={() => onEdit(t)} className="p-1 text-slate-400 hover:text-blue-500 transition-colors">
                             <Edit2 size={16} />
                         </button>
-                        <button onClick={() => onDelete(t.id)} className="text-slate-400 hover:text-red-500 transition-colors">
+                        <button onClick={() => onDelete(t.id)} className="p-1 text-slate-400 hover:text-red-500 transition-colors">
                             <Trash2 size={16} />
                         </button>
                         </>
                     )}
                     {isVirtual && (
-                         <button onClick={() => onEdit(t)} className="text-indigo-400 hover:text-indigo-600 transition-colors" title="Ver detalhes no cartão">
+                         <button onClick={() => onEdit(t)} className="p-1 text-indigo-400 hover:text-indigo-600 transition-colors" title="Ver detalhes no cartão">
                             <CreditCard size={16} />
                          </button>
                     )}

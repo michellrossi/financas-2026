@@ -175,23 +175,52 @@ export const StorageService = {
     const snapshot = await getDocs(q);
     const batch = writeBatch(db);
 
-    const targetDate = new Date(startFromDate);
+    // This is the date of the SPECIFIC transaction being edited (the "start" of our update window)
+    const targetDateStr = startFromDate.split('T')[0];
+    
+    // Parse the NEW date from the form (baseTransaction.date)
+    const [ny, nm, nd] = baseTransaction.date.split('T')[0].split('-').map(Number);
+    const newBaseDateObj = new Date(ny, nm - 1, nd, 12, 0, 0);
 
-    snapshot.docs.forEach(docSnap => {
-        const data = docSnap.data();
-        const itemDate = new Date(data.date);
+    // Get the installment index of the item being edited to calculate offsets
+    // We need to find the doc that corresponds to startFromDate (or the ID, but we passed date)
+    // Actually, relying on date string comparison can be tricky. Ideally we pass the edited ID.
+    // However, assuming logic: We update everything where installment.current >= edited.installment.current
+    
+    // Let's first map all docs to memory to sort and find the pivot
+    const allDocs = snapshot.docs.map(d => ({ id: d.id, data: d.data() as Transaction }));
+    const sortedDocs = allDocs.sort((a, b) => (a.data.installments?.current || 0) - (b.data.installments?.current || 0));
 
-        // Only update if date is equal or after the target transaction
-        if (itemDate >= targetDate) {
-            const ref = doc(db, "transactions", docSnap.id);
-            // Update fields but PRESERVE the date and installment index
+    // Find the current installment index of the transaction that triggered the update
+    // We can identify it by matching the OLD date (targetDateStr) roughly, 
+    // BUT since we don't have the old date passed explicitly in a robust way if it changed, 
+    // we rely on the logic: The user clicked "Update Series" from a specific transaction.
+    // The "startFromDate" param passed is the OLD date of that transaction.
+    
+    // Better approach: Calculate offsets based on installment index relative to the NEW base date.
+    // Use the `baseTransaction.installments.current` as the anchor.
+    const anchorIndex = baseTransaction.installments?.current || 1;
+
+    sortedDocs.forEach(docItem => {
+        const currentIdx = docItem.data.installments?.current || 1;
+        
+        // Only update if this installment is equal to or after the one being edited
+        if (currentIdx >= anchorIndex) {
+            const ref = doc(db, "transactions", docItem.id);
+            
+            // Calculate new date for this specific installment
+            // Offset = currentIdx - anchorIndex (0 for the edited one, 1 for next, etc)
+            const monthOffset = currentIdx - anchorIndex;
+            const computedDate = addMonths(newBaseDateObj, monthOffset);
+
             batch.update(ref, {
                 description: baseTransaction.description,
                 amount: baseTransaction.amount,
                 category: baseTransaction.category,
                 type: baseTransaction.type,
                 cardId: baseTransaction.cardId || null,
-                // Do NOT update date, status or installment current index
+                date: computedDate.toISOString() // Update date!
+                // Don't update installment numbers/ids
             });
         }
     });
@@ -219,6 +248,8 @@ export const StorageService = {
         const itemDate = new Date(data.date);
         
         // Delete if date is equal or after target
+        // Note: Compare timestamps or ISO strings to avoid timezone drift issues
+        // Simpler: Delete where installment.current >= current
         if (itemDate >= targetDate) {
             batch.delete(doc(db, "transactions", docSnap.id));
         }

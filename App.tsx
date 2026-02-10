@@ -488,7 +488,7 @@ function App() {
       {/* Floating Action Button (FAB) for Mobile/All */}
       <button
         onClick={() => { setEditingTransaction(null); setIsTxModalOpen(true); }}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-emerald-600 text-white rounded-full shadow-2xl hover:bg-emerald-700 hover:scale-105 transition-all flex items-center justify-center z-40 group md:hidden"
+        className="fixed bottom-24 right-6 w-14 h-14 bg-emerald-600 text-white rounded-full shadow-2xl hover:bg-emerald-700 hover:scale-105 transition-all flex items-center justify-center z-40 group md:hidden"
         title="Nova Transação"
       >
         <Plus size={32} strokeWidth={2.5} />
@@ -516,7 +516,14 @@ function App() {
         title={listModalTitle}
         transactions={listModalTransactions}
         // Connect Edit/Delete actions for items inside the list (like Card Invoice Items)
-        onEdit={(t) => { setEditingTransaction(t); setIsTxModalOpen(true); }}
+        onEdit={(t) => { 
+            // Fix: Close list modal before opening edit form to avoid overlap
+            setIsListModalOpen(false); 
+            setTimeout(() => {
+                setEditingTransaction(t); 
+                setIsTxModalOpen(true); 
+            }, 100);
+        }}
         onDelete={handleDelete}
       />
 
