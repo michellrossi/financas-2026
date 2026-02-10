@@ -16,6 +16,8 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({ isOpen, onClose, c
   const [step, setStep] = useState<'INPUT' | 'PREVIEW'>('INPUT');
   const [text, setText] = useState('');
   const [selectedCardId, setSelectedCardId] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth()); // 0-11
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [loading, setLoading] = useState(false);
   const [parsedData, setParsedData] = useState<AIParsedTransaction[]>([]);
   const [error, setError] = useState('');
@@ -94,20 +96,29 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({ isOpen, onClose, c
     console.log("🔵 handleConfirm chamado!");
     console.log("🔵 parsedData:", parsedData);
     console.log("🔵 selectedCardId:", selectedCardId);
+    console.log("🔵 Mês/Ano selecionado:", selectedMonth + 1, "/", selectedYear);
     
-    const transactions: Transaction[] = parsedData.map(item => ({
-      id: crypto.randomUUID(),
-      description: item.description,
-      amount: item.amount,
-      date: new Date(item.date).toISOString(),
-      // Map AI type to App type
-      type: item.type === 'INCOME' ? TransactionType.INCOME : TransactionType.CARD_EXPENSE,
-      category: item.category,
-      status: TransactionStatus.COMPLETED,
-      // Only attach card ID if it's a card expense. 
-      // We will attach the cardId regardless for tracking.
-      cardId: selectedCardId
-    }));
+    const transactions: Transaction[] = parsedData.map(item => {
+      // Pega o dia da data original parseada pela IA
+      const originalDate = new Date(item.date);
+      const day = originalDate.getDate();
+      
+      // Cria nova data com o mês/ano selecionado pelo usuário, mantendo o dia
+      const newDate = new Date(selectedYear, selectedMonth, day);
+      
+      console.log(`📅 Ajustando data: ${item.date} → ${newDate.toISOString().split('T')[0]}`);
+      
+      return {
+        id: crypto.randomUUID(),
+        description: item.description,
+        amount: item.amount,
+        date: newDate.toISOString(),
+        type: item.type === 'INCOME' ? TransactionType.INCOME : TransactionType.CARD_EXPENSE,
+        category: item.category,
+        status: TransactionStatus.COMPLETED,
+        cardId: selectedCardId
+      };
+    });
     
     console.log("🚀 TRANSAÇÕES PRONTAS PARA IMPORTAR:", transactions);
     console.log("🚀 Quantidade de transações:", transactions.length);
@@ -152,6 +163,44 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({ isOpen, onClose, c
               {cards.length === 0 && <option value="">Nenhum cartão cadastrado</option>}
               {cards.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 mb-1">Mês da Fatura</label>
+              <select 
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+              >
+                <option value={0}>Janeiro</option>
+                <option value={1}>Fevereiro</option>
+                <option value={2}>Março</option>
+                <option value={3}>Abril</option>
+                <option value={4}>Maio</option>
+                <option value={5}>Junho</option>
+                <option value={6}>Julho</option>
+                <option value={7}>Agosto</option>
+                <option value={8}>Setembro</option>
+                <option value={9}>Outubro</option>
+                <option value={10}>Novembro</option>
+                <option value={11}>Dezembro</option>
+              </select>
+            </div>
+            
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 mb-1">Ano</label>
+              <select 
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(Number(e.target.value))}
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+              >
+                <option value={2024}>2024</option>
+                <option value={2025}>2025</option>
+                <option value={2026}>2026</option>
+                <option value={2027}>2027</option>
+              </select>
+            </div>
           </div>
 
           <div>
