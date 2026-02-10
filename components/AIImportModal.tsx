@@ -162,58 +162,54 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
   ========================= */
 
   const handleConfirm = () => {
-    const card = cards.find(c => c.id === selectedCardId);
+  const card = cards.find(c => c.id === selectedCardId);
+  if (!card) {
+    setError('Cartão inválido.');
+    return;
+  }
 
-    if (!card) {
-      setError('Cartão inválido.');
+  const closingDay = card.closingDay ?? 1;
+  const { cycleStart, cycleEnd } = getInvoiceCycle(
+    selectedMonth,
+    selectedYear,
+    closingDay
+  );
+
+  const transactions: Transaction[] = [];
+
+  parsedData.forEach((item) => {
+    const transactionDate = parseDateBR(item.date);
+    if (!transactionDate) return;
+
+    // VALIDAR SE ESTÁ NO CICLO
+    if (transactionDate < cycleStart || transactionDate > cycleEnd) {
       return;
     }
 
-    const closingDay = card.closingDay ?? 1;
+    // SOLUÇÃO: Criar a data forçando o Mês e Ano selecionados no Modal
+    // Isso garante que todas caiam em Janeiro, mantendo o dia original da compra.
+    const finalDate = new Date(selectedYear, selectedMonth, transactionDate.getDate(), 12, 0, 0);
 
-    const { cycleStart, cycleEnd } = getInvoiceCycle(
-      selectedMonth,
-      selectedYear,
-      closingDay
-    );
-
-    console.log('🧾 CICLO DA FATURA');
-    console.log('Início:', cycleStart.toISOString());
-    console.log('Fim:', cycleEnd.toISOString());
-
-    const transactions: Transaction[] = [];
-
-    parsedData.forEach((item, index) => {
-      const transactionDate = parseDateBR(item.date);
-if (!transactionDate) return;
-
-// Lógica crucial: Se a data pertence ao ciclo desta fatura, 
-// forçamos a data para o mês/ano da fatura selecionada para que ela 
-// apareça corretamente na listagem de Janeiro.
-const savedDate = new Date(selectedYear, selectedMonth, transactionDate.getDate(), 12, 0, 0);
-
-transactions.push({
-  id: crypto.randomUUID(),
-  description: item.description,
-  amount: item.amount,
-  date: savedDate.toISOString(), // Agora salva como uma data de Janeiro
-  type: item.type === 'INCOME' ? TransactionType.INCOME : TransactionType.CARD_EXPENSE,
-  category: item.category,
-  status: TransactionStatus.COMPLETED,
-  cardId: selectedCardId
-});
-
-      console.log('✅ Importada');
+    transactions.push({
+      id: crypto.randomUUID(),
+      description: item.description,
+      amount: item.amount,
+      date: finalDate.toISOString(), // Salva exatamente no mês de destino
+      type: item.type === 'INCOME' ? TransactionType.INCOME : TransactionType.CARD_EXPENSE,
+      category: item.category,
+      status: TransactionStatus.COMPLETED,
+      cardId: selectedCardId
     });
+  });
 
-    if (!transactions.length) {
-      setError('Nenhuma transação pertence a esta fatura.');
-      return;
-    }
+  if (!transactions.length) {
+    setError('Nenhuma transação pertence a esta fatura.');
+    return;
+  }
 
-    onImport(transactions);
-    handleClose();
-  };
+  onImport(transactions);
+  handleClose();
+};
 
   const handleClose = () => {
     setText('');
