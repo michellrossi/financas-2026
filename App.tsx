@@ -128,50 +128,43 @@ function App() {
 
   // --- Transaction Handlers ---
   const handleTransactionSubmit = async (t: Transaction, installments: number, amountType: 'total' | 'installment') => {
-    if (!user) return;
-    
-    if (editingTransaction) {
-      await StorageService.updateTransaction(user.id, t);
-    } else {
-      const allT = generateInstallments(t, installments, amountType);
-      // Sequentially add to Firestore
-      for (const tx of allT) {
-        await StorageService.addTransaction(user.id, tx);
-      }
+  if (!user) return;
+  
+  // Verifique se a transação REALMENTE já existe no banco (pela presença de um ID vindo do Firestore)
+  // Se for um UUID gerado manualmente no Form, tratamos como nova
+  const isEditing = editingTransaction && transactions.some(tx => tx.id === editingTransaction.id);
+
+  if (isEditing) {
+    await StorageService.updateTransaction(user.id, t);
+  } else {
+    const allT = generateInstallments(t, installments, amountType);
+    for (const tx of allT) {
+      // Removemos o ID temporário para que o Firebase gere um ID autêntico via addDoc
+      const { id, ...dataWithoutId } = tx; 
+      await StorageService.addTransaction(user.id, dataWithoutId as Transaction);
     }
-    fetchData(user.id);
-  };
+  }
+  fetchData(user.id);
+};
 
   const handleBatchTransactions = async (newTransactions: Transaction[]) => {
-    console.log("🟢 handleBatchTransactions CHAMADO!");
-    console.log("🟢 Transações recebidas:", newTransactions);
-    console.log("🟢 Quantidade:", newTransactions.length);
-    console.log("🟢 User:", user);
-    
-    if (!user) {
-      console.log("❌ SEM USUÁRIO - ABORTANDO");
-      return;
+  if (!user) return;
+  setLoading(true);
+  try {
+    for (const t of newTransactions) {
+      // Remove o ID gerado pela IA para o Firebase criar o seu próprio
+      const { id, ...data } = t;
+      await StorageService.addTransaction(user.id, data as Transaction);
     }
-    
-    setLoading(true);
-    
-    try {
-      console.log("🟢 Iniciando salvamento no Firestore...");
-      for (const t of newTransactions) {
-        console.log("🟢 Salvando transação:", t.description);
-        await StorageService.addTransaction(user.id, t);
-        console.log("✅ Transação salva:", t.description);
-      }
-      console.log("🟢 Todas as transações salvas! Recarregando dados...");
-      fetchData(user.id);
-      console.log("🟢 fetchData chamado!");
-    } catch (e) {
-      console.error("❌ ERRO ao salvar transações:", e);
-    } finally {
-      setLoading(false);
-      console.log("🟢 handleBatchTransactions CONCLUÍDO!");
-    }
-  };
+    await fetchData(user.id);
+    setIsAIModalOpen(false); // Fecha o modal após sucesso
+  } catch (e) {
+    console.error("Erro na importação:", e);
+    alert("Erro ao importar transações. Verifique o console.");
+  } finally {
+    setLoading(false); // Garante que o estado de loading saia, destravando a UI
+  }
+};
 
   const handleDelete = async (id: string) => {
     if (!user) return;
