@@ -26,14 +26,27 @@ function parseDateBR(dateStr: string): Date | null {
   if (!dateStr) return null;
 
   const clean = dateStr.trim();
-  const match = clean.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  let day, month, year;
 
-  if (!match) return null;
+  // Tenta formato YYYY-MM-DD (que a IA está enviando)
+  const matchISO = clean.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (matchISO) {
+    year = Number(matchISO[1]);
+    month = Number(matchISO[2]);
+    day = Number(matchISO[3]);
+  } else {
+    // Tenta formato DD/MM/YYYY (fallback brasileiro)
+    const matchBR = clean.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (matchBR) {
+      day = Number(matchBR[1]);
+      month = Number(matchBR[2]);
+      year = Number(matchBR[3]);
+    } else {
+      return null;
+    }
+  }
 
-  const day = Number(match[1]);
-  const month = Number(match[2]);
-  const year = Number(match[3]);
-
+  // Cria a data ao meio-dia para evitar problemas de fuso horário
   const date = new Date(year, month - 1, day, 12, 0, 0);
 
   if (isNaN(date.getTime())) return null;
