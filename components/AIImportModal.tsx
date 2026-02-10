@@ -54,28 +54,12 @@ function parseDateBR(dateStr: string): Date | null {
   return date;
 }
 
-function getInvoiceCycle(
-  invoiceMonth: number, // 0-11
-  invoiceYear: number,
-  closingDay: number
-) {
-  const cycleStart = new Date(
-    invoiceYear,
-    invoiceMonth - 1,
-    closingDay,
-    0,
-    0,
-    0
-  );
-
-  const cycleEnd = new Date(
-    invoiceYear,
-    invoiceMonth,
-    closingDay - 1,
-    23,
-    59,
-    59
-  );
+function getInvoiceCycle(invoiceMonth: number, invoiceYear: number, closingDay: number) {
+  // Início do ciclo: Dia de fechamento do mês anterior
+  const cycleStart = new Date(invoiceYear, invoiceMonth - 1, closingDay, 0, 0, 0);
+  
+  // Fim do ciclo: Um dia antes do fechamento do mês atual
+  const cycleEnd = new Date(invoiceYear, invoiceMonth, closingDay - 1, 23, 59, 59);
 
   return { cycleStart, cycleEnd };
 }
@@ -201,33 +185,23 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
 
     parsedData.forEach((item, index) => {
       const transactionDate = parseDateBR(item.date);
+if (!transactionDate) return;
 
-      if (!transactionDate) {
-        console.warn('❌ Data inválida ignorada:', item.date);
-        return;
-      }
+// Lógica crucial: Se a data pertence ao ciclo desta fatura, 
+// forçamos a data para o mês/ano da fatura selecionada para que ela 
+// apareça corretamente na listagem de Janeiro.
+const savedDate = new Date(selectedYear, selectedMonth, transactionDate.getDate(), 12, 0, 0);
 
-      console.log(`📄 ${index + 1} ${item.description}`);
-      console.log('Data extrato:', transactionDate.toISOString());
-
-      if (transactionDate < cycleStart || transactionDate > cycleEnd) {
-        console.warn('⛔ Fora do ciclo da fatura');
-        return;
-      }
-
-      transactions.push({
-        id: crypto.randomUUID(),
-        description: item.description,
-        amount: item.amount,
-        date: transactionDate.toISOString(),
-        type:
-          item.type === 'INCOME'
-            ? TransactionType.INCOME
-            : TransactionType.CARD_EXPENSE,
-        category: item.category,
-        status: TransactionStatus.COMPLETED,
-        cardId: selectedCardId
-      });
+transactions.push({
+  id: crypto.randomUUID(),
+  description: item.description,
+  amount: item.amount,
+  date: savedDate.toISOString(), // Agora salva como uma data de Janeiro
+  type: item.type === 'INCOME' ? TransactionType.INCOME : TransactionType.CARD_EXPENSE,
+  category: item.category,
+  status: TransactionStatus.COMPLETED,
+  cardId: selectedCardId
+});
 
       console.log('✅ Importada');
     });
