@@ -281,10 +281,12 @@ function App() {
 
   // Sort logic for display
   const getFilteredTransactionsForView = () => {
-    const baseList = currentView === 'INCOMES' 
-      ? transactions.filter(t => t.type === TransactionType.INCOME)
-      : transactions.filter(t => t.type !== TransactionType.INCOME);
-    return baseList;
+    // ALTERAÇÃO AQUI: Se for INCOME, traz INCOME. Se for EXPENSE (Saídas), traz apenas EXPENSE (exclui CARD_EXPENSE)
+    if (currentView === 'INCOMES') {
+      return transactions.filter(t => t.type === TransactionType.INCOME);
+    }
+    // Na visão de Saídas, não mostramos transações de cartão
+    return transactions.filter(t => t.type === TransactionType.EXPENSE);
   };
 
   return (

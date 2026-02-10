@@ -100,7 +100,7 @@ export const Transactions: React.FC<TransactionsProps> = ({
                      onClick={() => onToggleStatus(t.id)}
                      className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors ${
                        t.status === TransactionStatus.COMPLETED 
-                         ? 'bg-blue-100 text-blue-600' 
+                         ? 'bg-emerald-100 text-emerald-600' // ALTERADO PARA VERDE (era blue)
                          : 'bg-indigo-100 text-indigo-600'
                      }`}
                    >

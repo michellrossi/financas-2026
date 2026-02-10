@@ -56,12 +56,12 @@ function parseDateBR(dateStr: string): Date | null {
 
 function getInvoiceCycle(invoiceMonth: number, invoiceYear: number, closingDay: number) {
   // Início do ciclo: Dia de fechamento do mês anterior
-  const cycleStart = new Date(invoiceYear, invoiceMonth - 1, closingDay, 0, 0, 0);
+  constQX = new Date(invoiceYear, invoiceMonth - 1, closingDay, 0, 0, 0);
   
   // Fim do ciclo: Um dia antes do fechamento do mês atual
   const cycleEnd = new Date(invoiceYear, invoiceMonth, closingDay - 1, 23, 59, 59);
 
-  return { cycleStart, cycleEnd };
+  return { cycleStart: constQX, cycleEnd };
 }
 
 /* =========================
@@ -169,6 +169,7 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
   }
 
   const closingDay = card.closingDay ?? 1;
+  // Apenas para validação de ciclo (se a compra entra ou nao nesta fatura)
   const { cycleStart, cycleEnd } = getInvoiceCycle(
     selectedMonth,
     selectedYear,
@@ -177,24 +178,30 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
 
   const transactions: Transaction[] = [];
 
+  // CORREÇÃO: Calcular quantos dias tem o mês selecionado para evitar overflow de data
+  // Ex: Se transação é dia 30, mas mês selecionado é Fev (28 dias), força dia 28.
+  const maxDayOfSelectedMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+
   parsedData.forEach((item) => {
     const transactionDate = parseDateBR(item.date);
     if (!transactionDate) return;
 
-    // VALIDAR SE ESTÁ NO CICLO
+    // 1. Validar se a data original da compra cai dentro do ciclo desta fatura
     if (transactionDate < cycleStart || transactionDate > cycleEnd) {
       return;
     }
 
-    // SOLUÇÃO: Criar a data forçando o Mês e Ano selecionados no Modal
-    // Isso garante que todas caiam em Janeiro, mantendo o dia original da compra.
-    const finalDate = new Date(selectedYear, selectedMonth, transactionDate.getDate(), 12, 0, 0);
+    // 2. Ajustar o dia para caber no mês selecionado (para não pular para o próximo mês)
+    const dayToUse = Math.min(transactionDate.getDate(), maxDayOfSelectedMonth);
+
+    // 3. Criar a data final forçando o Mês e Ano selecionados no Modal
+    const finalDate = new Date(selectedYear, selectedMonth, dayToUse, 12, 0, 0);
 
     transactions.push({
       id: crypto.randomUUID(),
       description: item.description,
       amount: item.amount,
-      date: finalDate.toISOString(), // Salva exatamente no mês de destino
+      date: finalDate.toISOString(),
       type: item.type === 'INCOME' ? TransactionType.INCOME : TransactionType.CARD_EXPENSE,
       category: item.category,
       status: TransactionStatus.COMPLETED,
@@ -203,7 +210,7 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
   });
 
   if (!transactions.length) {
-    setError('Nenhuma transação pertence a esta fatura.');
+    setError('Nenhuma transação pertence ao ciclo desta fatura.');
     return;
   }
 
