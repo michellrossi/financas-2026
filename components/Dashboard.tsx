@@ -205,8 +205,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ transactions, filter, card
         {/* Category Pie Chart (1/3 width) */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col min-w-0">
            <h3 className="text-lg font-bold text-slate-800 mb-4">Gastos por Categoria</h3>
-           <div className="flex-1 flex items-center justify-center relative w-full h-full min-h-[200px]">
-              <div className="absolute inset-0">
+           {/* Fix: removed nested flex and relative mess, just used explicit height for container */}
+           <div className="w-full h-[250px]"> 
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
@@ -226,7 +226,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ transactions, filter, card
                     <Tooltip formatter={(value: number) => formatCurrency(value)} />
                   </PieChart>
                 </ResponsiveContainer>
-              </div>
            </div>
            {/* Compact Legend */}
            <div className="mt-4 grid grid-cols-2 gap-2">

@@ -119,7 +119,8 @@ function App() {
   const handleTransactionSubmit = async (t: Transaction, installments: number, amountType: 'total' | 'installment') => {
     if (!user) return;
     
-    if (editingTransaction) {
+    // Check if ID exists to determine if it's an Update or Create
+    if (editingTransaction && editingTransaction.id) {
       await StorageService.updateTransaction(user.id, t);
     } else {
       const allT = generateInstallments(t, installments, amountType);
@@ -345,7 +346,8 @@ function App() {
           }}
           onAddTransaction={(cardId) => {
             setEditingTransaction({ 
-              id: '', description: '', amount: 0, date: new Date().toISOString(),
+              id: '', // Empty ID tells the form it's new, App logic checks for existing ID
+              description: '', amount: 0, date: new Date().toISOString(),
               type: TransactionType.CARD_EXPENSE, category: 'Outros', status: TransactionStatus.COMPLETED,
               cardId: cardId
             });

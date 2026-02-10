@@ -1,3 +1,4 @@
+
 export enum TransactionType {
   INCOME = 'INCOME',
   EXPENSE = 'EXPENSE',
@@ -53,12 +54,37 @@ export interface FilterState {
 }
 
 export const INCOME_CATEGORIES = [
-  'Salário', 'Bonificação', '13°', 'Vale Alimentação', 
-  'Vale Refeição', 'ISK', 'Periculosidade', 'Saldo Anterior', 'Outros'
-];
+  '13°', 
+  'Bonificação', 
+  'Empréstimo',
+  'Investimentos',
+  'ISK', 
+  'Outros',
+  'Periculosidade', 
+  'Salário', 
+  'Saldo Anterior', 
+  'Vale Alimentação', 
+  'Vale Refeição'
+].sort();
 
 export const EXPENSE_CATEGORIES = [
-  'Alimentação', 'Mercado', 'Ifood', 'Transporte', 'Carro', 
-  'Apê', 'Assinaturas', 'Lazer', 'Viagem', 'Saúde', 
-  'Estudo', 'Pessoais', 'Presente', 'Lucas', 'Besteiras', 'Outros'
-];
+  'Alimentação', 
+  'Apê', 
+  'Assinaturas', 
+  'Besteiras', 
+  'Carro', 
+  'Educação',
+  'Estudo', 
+  'Farmácia',
+  'Ifood', 
+  'Lazer', 
+  'Lucas', 
+  'Mercado', 
+  'Outros',
+  'Pessoais', 
+  'Presente', 
+  'Saúde', 
+  'Transporte', 
+  'Viagem',
+  'Vestuário'
+].sort();

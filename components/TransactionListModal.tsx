@@ -2,7 +2,7 @@ import React from 'react';
 import { Modal } from './ui/Modal';
 import { Transaction, TransactionType, TransactionStatus } from '../types';
 import { formatCurrency } from '../services/storage';
-import { format } from 'date-fns';
+import { format, isBefore, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ArrowUpRight, ArrowDownRight, CreditCard } from 'lucide-react';
 
@@ -14,6 +14,21 @@ interface TransactionListModalProps {
 }
 
 export const TransactionListModal: React.FC<TransactionListModalProps> = ({ isOpen, onClose, title, transactions }) => {
+  
+  const getStatusDisplay = (t: Transaction) => {
+      const isCompleted = t.status === TransactionStatus.COMPLETED;
+      const today = startOfDay(new Date());
+      const txDate = startOfDay(new Date(t.date));
+      const isOverdue = !isCompleted && isBefore(txDate, today);
+
+      if (isCompleted) return null; // Don't show tag if completed in this list, or use green check?
+
+      if (isOverdue) {
+          return <span className="text-[10px] text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded font-bold uppercase">Vencido</span>;
+      }
+      return <span className="text-[10px] text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded uppercase">Pendente</span>;
+  };
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title} maxWidth="max-w-2xl">
       <div className="space-y-2">
@@ -43,9 +58,7 @@ export const TransactionListModal: React.FC<TransactionListModalProps> = ({ isOp
                 <p className={`font-bold text-sm ${t.type === TransactionType.INCOME ? 'text-emerald-600' : 'text-slate-800'}`}>
                   {t.type === TransactionType.INCOME ? '+' : '-'} {formatCurrency(t.amount)}
                 </p>
-                {t.status === TransactionStatus.PENDING && (
-                  <span className="text-[10px] text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded">Pendente</span>
-                )}
+                {getStatusDisplay(t)}
               </div>
             </div>
           ))
