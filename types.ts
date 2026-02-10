@@ -74,6 +74,7 @@ export const EXPENSE_CATEGORIES = [
   'Assinaturas', 
   'Besteiras', 
   'Carro', 
+  'Comemoração',
   'Educação',
   'Estudo', 
   'Farmácia',

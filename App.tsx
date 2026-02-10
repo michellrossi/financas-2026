@@ -7,7 +7,7 @@ import { TransactionForm } from './components/TransactionForm';
 import { TransactionListModal } from './components/TransactionListModal';
 import { CardForm } from './components/CardForm';
 import { StorageService, generateInstallments, getInvoiceMonth } from './services/storage';
-import { User, Transaction, ViewState, FilterState, CreditCard, TransactionType, TransactionStatus } from './types';
+import { User, Transaction, ViewState, FilterState, CreditCard, TransactionType, TransactionStatus, INCOME_CATEGORIES, EXPENSE_CATEGORIES } from './types';
 import { Plus, ChevronLeft, ChevronRight, Loader2, LogOut } from 'lucide-react';
 import { format, isSameMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -171,6 +171,34 @@ function App() {
   };
 
   // --- Transaction Handlers ---
+  const handleOpenNewTransaction = () => {
+      // Determine default type based on current view
+      let defaultType = TransactionType.EXPENSE;
+      let defaultCategory = EXPENSE_CATEGORIES[0];
+      let defaultCardId = undefined;
+
+      if (currentView === 'INCOMES') {
+          defaultType = TransactionType.INCOME;
+          defaultCategory = INCOME_CATEGORIES[0];
+      } else if (currentView === 'CARDS') {
+          defaultType = TransactionType.CARD_EXPENSE;
+          defaultCategory = EXPENSE_CATEGORIES[0];
+          if (cards.length > 0) defaultCardId = cards[0].id;
+      }
+
+      setEditingTransaction({
+        id: '',
+        description: '',
+        amount: 0,
+        date: new Date().toISOString(),
+        type: defaultType,
+        category: defaultCategory,
+        status: TransactionStatus.COMPLETED,
+        cardId: defaultCardId
+      });
+      setIsTxModalOpen(true);
+  };
+
   const handleTransactionSubmit = async (t: Transaction, installments: number, amountType: 'total' | 'installment') => {
     if (!user) return;
     
@@ -389,8 +417,8 @@ function App() {
            <p className="text-slate-500 text-sm font-medium">Bem vindo de volta, {user.name.split(' ')[0]}</p>
         </div>
 
-        {/* Desktop Controls (No New Transaction Button Here anymore, moved to FAB) */}
-        <div className="flex items-center gap-3">
+        {/* Desktop Controls */}
+        <div className="hidden md:flex items-center gap-3">
            {loading && <Loader2 className="animate-spin text-emerald-500 mr-2" />}
            
            <div className="flex items-center bg-white rounded-xl border border-slate-200 p-1 shadow-sm">
@@ -402,19 +430,26 @@ function App() {
 
         {/* Mobile Header with Controls */}
         <div className="md:hidden flex justify-between items-center w-full absolute top-6 left-0 px-4">
-             <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center text-white font-bold">F</div>
-                <h1 className="font-bold text-slate-800 text-lg">Finanças</h1>
-             </div>
+             {/* Logo Removed as requested */}
              
-             <div className="flex items-center gap-2">
-                <button 
-                  onClick={() => { setEditingTransaction(null); setIsTxModalOpen(true); }}
-                  className="w-9 h-9 flex items-center justify-center bg-emerald-100 text-emerald-700 rounded-full hover:bg-emerald-200 transition-colors"
+             {/* Month Selector + Add Button grouped */}
+             <div className="flex items-center gap-2 w-full justify-center relative">
+               <div className="flex items-center bg-white rounded-xl border border-slate-200 p-1 shadow-sm">
+                  <button onClick={() => changeMonth(-1)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500"><ChevronLeft size={20} /></button>
+                  <span className="min-w-[120px] text-center font-bold text-slate-700 capitalize select-none text-sm">{currentDateDisplay}</span>
+                  <button onClick={() => changeMonth(1)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500"><ChevronRight size={20} /></button>
+               </div>
+
+               <button 
+                  onClick={handleOpenNewTransaction}
+                  className="w-10 h-10 flex items-center justify-center bg-emerald-100 text-emerald-700 rounded-xl hover:bg-emerald-200 transition-colors"
                   title="Nova Transação"
                 >
                   <Plus size={20} strokeWidth={2.5} />
                 </button>
+             </div>
+             
+             <div className="absolute right-4">
                 <button onClick={handleLogout} className="p-2 text-slate-400"><LogOut size={20}/></button>
              </div>
         </div>
@@ -499,9 +534,9 @@ function App() {
         )}
       </div>
 
-      {/* Floating Action Button (FAB) for Web Only */}
+      {/* Floating Action Button (FAB) for Web Only - Now uses smart open */}
       <button
-        onClick={() => { setEditingTransaction(null); setIsTxModalOpen(true); }}
+        onClick={handleOpenNewTransaction}
         className="fixed bottom-6 right-6 w-14 h-14 bg-emerald-600 text-white rounded-full shadow-2xl hover:bg-emerald-700 hover:scale-105 transition-all items-center justify-center z-40 group hidden md:flex"
         title="Nova Transação"
       >
@@ -529,7 +564,16 @@ function App() {
         onClose={() => setIsListModalOpen(false)}
         title={listModalTitle}
         transactions={listModalTransactions}
-        // Removed onEdit and onDelete to hide actions in popup as requested
+        // Only allow Edit/Delete if we are in CARDS view (Invoice details)
+        // Dashboard popups are read-only to save space
+        onEdit={currentView === 'CARDS' ? (t) => { 
+            setIsListModalOpen(false); 
+            setTimeout(() => {
+                setEditingTransaction(t); 
+                setIsTxModalOpen(true); 
+            }, 100);
+        } : undefined}
+        onDelete={currentView === 'CARDS' ? handleDelete : undefined}
       />
 
     </Layout>
