@@ -233,6 +233,16 @@ export const StorageService = {
     await updateDoc(ref, { status: newStatus });
   },
 
+  // Batch toggle status (used for Invoice Payment)
+  batchUpdateStatus: async (userId: string, transactionIds: string[], newStatus: TransactionStatus) => {
+    const batch = writeBatch(db);
+    transactionIds.forEach(id => {
+      const ref = doc(db, "transactions", id);
+      batch.update(ref, { status: newStatus });
+    });
+    await batch.commit();
+  },
+
   // --- Cards ---
 
   getCards: async (userId: string): Promise<CreditCard[]> => {

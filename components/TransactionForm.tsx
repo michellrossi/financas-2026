@@ -161,7 +161,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ isOpen, onClos
                 />
               </div>
             </div>
-            <div className="w-1/3">
+            {/* Expanded width for date to fit full info */}
+            <div className="flex-1">
                 <label className="block text-xs font-semibold text-slate-500 mb-1">Data</label>
                 <input
                   type="date"

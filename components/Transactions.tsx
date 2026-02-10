@@ -128,8 +128,8 @@ export const Transactions: React.FC<TransactionsProps> = ({
                   <div className="flex items-center gap-3">
                     <button 
                       onClick={() => onToggleStatus(t.id)}
-                      disabled={isVirtual}
-                      className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors border ${statusInfo.style} ${isVirtual ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors border ${statusInfo.style} hover:opacity-80 active:scale-95`}
+                      title={isVirtual ? "Marcar todas as despesas desta fatura como pagas/pendentes" : "Alternar status"}
                     >
                         {statusInfo.label}
                     </button>

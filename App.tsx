@@ -92,7 +92,7 @@ function App() {
     });
 
     // 2. Aggregate Card Transactions into Invoices
-    const invoiceMap = new Map<string, { amount: number, card: CreditCard }>();
+    const invoiceMap = new Map<string, { amount: number, card: CreditCard, items: Transaction[] }>();
 
     transactions.filter(t => t.type === TransactionType.CARD_EXPENSE).forEach(t => {
       const card = cards.find(c => c.id === t.cardId);
@@ -102,18 +102,22 @@ function App() {
         
         // If this invoice belongs to the currently filtered month, add to total
         if (isSameMonth(invoiceDate, targetDate)) {
-          const current = invoiceMap.get(card.id) || { amount: 0, card };
+          const current = invoiceMap.get(card.id) || { amount: 0, card, items: [] };
           current.amount += t.amount;
+          current.items.push(t);
           invoiceMap.set(card.id, current);
         }
       }
     });
 
     // 3. Create "Virtual" Transactions for the Invoices
-    const invoiceTxs: Transaction[] = Array.from(invoiceMap.values()).map(({ amount, card }) => {
+    const invoiceTxs: Transaction[] = Array.from(invoiceMap.values()).map(({ amount, card, items }) => {
        // Determine Due Date for this invoice
        const dueDate = new Date(filter.year, filter.month, card.dueDay);
        
+       // Calculate Status based on items: If ALL are completed, status is completed. Else Pending.
+       const allCompleted = items.length > 0 && items.every(t => t.status === TransactionStatus.COMPLETED);
+
        return {
          id: `virtual-invoice-${card.id}-${filter.month}-${filter.year}`,
          description: `Fatura: ${card.name}`,
@@ -121,7 +125,7 @@ function App() {
          date: dueDate.toISOString(),
          type: TransactionType.EXPENSE, // Treat invoice as an expense to pay
          category: 'Cartão de Crédito',
-         status: TransactionStatus.PENDING, // Default to pending (A Pagar)
+         status: allCompleted ? TransactionStatus.COMPLETED : TransactionStatus.PENDING,
          isVirtual: true,
          cardId: card.id // Reference for clicking
        };
@@ -225,17 +229,43 @@ function App() {
       }
       
       fetchData(user.id);
-      // If we are in the list modal (e.g. Card Invoice), refresh logic handles itself via 'transactions' state update,
-      // but we need to close or update the modal content if the specific item is gone.
-      // The modal uses 'listModalTransactions' state which is static until reset.
-      setIsListModalOpen(false); // Close modal to avoid stale data, simple fix.
+      setIsListModalOpen(false); // Close modal
     }
   };
 
   const handleToggleStatus = async (id: string) => {
     if (!user) return;
-    if (id.startsWith('virtual-invoice')) return; 
 
+    // Handle Virtual Invoice "Payment"
+    if (id.startsWith('virtual-invoice')) {
+      const virtualTx = processedTransactions.find(t => t.id === id);
+      if (!virtualTx || !virtualTx.cardId) return;
+
+      const newStatus = virtualTx.status === TransactionStatus.COMPLETED 
+        ? TransactionStatus.PENDING 
+        : TransactionStatus.COMPLETED;
+
+      // Find underlying transactions for this invoice
+      const targetDate = new Date(filter.year, filter.month, 1);
+      const card = cards.find(c => c.id === virtualTx.cardId);
+      if (!card) return;
+
+      const txsToUpdate = transactions.filter(t => {
+        if (t.type !== TransactionType.CARD_EXPENSE || t.cardId !== virtualTx.cardId) return false;
+        const invoiceDate = getInvoiceMonth(new Date(t.date), card.closingDay);
+        return isSameMonth(invoiceDate, targetDate);
+      });
+      
+      const idsToUpdate = txsToUpdate.map(t => t.id);
+      
+      if (idsToUpdate.length > 0) {
+        await StorageService.batchUpdateStatus(user.id, idsToUpdate, newStatus);
+        fetchData(user.id);
+      }
+      return;
+    }
+
+    // Standard Toggle
     const t = transactions.find(tx => tx.id === id);
     if (t) {
       await StorageService.toggleStatus(user.id, t);
@@ -370,7 +400,7 @@ function App() {
            
            <button 
              onClick={() => { setEditingTransaction(null); setIsTxModalOpen(true); }}
-             className="w-12 h-12 flex items-center justify-center bg-emerald-500 text-white rounded-2xl hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-200"
+             className="w-12 h-12 flex items-center justify-center bg-emerald-500 text-white rounded-2xl hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-200 hidden md:flex"
              title="Nova Transação"
            >
              <Plus size={24} strokeWidth={3} />
@@ -382,6 +412,7 @@ function App() {
       {currentView === 'DASHBOARD' && (
         <Dashboard 
           transactions={processedTransactions} 
+          allTransactions={transactions} // Pass raw txs for history
           filter={filter} 
           cards={cards}
           onViewDetails={(type) => { 
@@ -453,6 +484,15 @@ function App() {
           onAddNewCard={() => { setEditingCard(null); setIsCardFormOpen(true); }}
         />
       )}
+
+      {/* Floating Action Button (FAB) for Mobile/All */}
+      <button
+        onClick={() => { setEditingTransaction(null); setIsTxModalOpen(true); }}
+        className="fixed bottom-6 right-6 w-14 h-14 bg-emerald-600 text-white rounded-full shadow-2xl hover:bg-emerald-700 hover:scale-105 transition-all flex items-center justify-center z-40 group md:hidden"
+        title="Nova Transação"
+      >
+        <Plus size={32} strokeWidth={2.5} />
+      </button>
 
       {/* Modals */}
       <TransactionForm 
