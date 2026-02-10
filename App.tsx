@@ -82,8 +82,6 @@ function App() {
   };
 
   // --- Core Logic: Aggregation for Display ---
-  // This transforms the raw data into what the user wants to see:
-  // Standard Txs + Aggregated Invoice Totals (no individual card txs)
   const processedTransactions = useMemo(() => {
     const targetDate = new Date(filter.year, filter.month, 1);
     
@@ -174,8 +172,23 @@ function App() {
     
     // Check if ID exists to determine if it's an Update or Create
     if (editingTransaction && editingTransaction.id) {
-      await StorageService.updateTransaction(user.id, t);
+      // UPDATE LOGIC
+      if (editingTransaction.installments?.groupId) {
+         // Ask user about series update
+         const updateSeries = window.confirm("Esta transação faz parte de um parcelamento. Deseja aplicar as alterações para todas as parcelas futuras desta série?");
+         
+         if (updateSeries) {
+            await StorageService.updateTransactionSeries(user.id, editingTransaction.installments.groupId, t, editingTransaction.date);
+         } else {
+            // Update only this one
+            await StorageService.updateTransaction(user.id, t);
+         }
+      } else {
+         // Standard update
+         await StorageService.updateTransaction(user.id, t);
+      }
     } else {
+      // CREATE LOGIC
       const allT = generateInstallments(t, installments, amountType);
       // Sequentially add to Firestore
       for (const tx of allT) {
@@ -194,19 +207,34 @@ function App() {
       return;
     }
 
+    const txToDelete = transactions.find(t => t.id === id);
+
     if (window.confirm('Tem certeza que deseja excluir esta transação?')) {
-      await StorageService.deleteTransaction(user.id, id);
+      
+      // Check for installments series
+      if (txToDelete?.installments?.groupId) {
+          const deleteSeries = window.confirm("Esta transação faz parte de um parcelamento. Deseja excluir TODAS as parcelas daqui para frente?");
+          if (deleteSeries) {
+              await StorageService.deleteTransactionSeries(user.id, txToDelete.installments.groupId, txToDelete.date);
+          } else {
+              await StorageService.deleteTransaction(user.id, id);
+          }
+      } else {
+          // Standard delete
+          await StorageService.deleteTransaction(user.id, id);
+      }
+      
       fetchData(user.id);
+      // If we are in the list modal (e.g. Card Invoice), refresh logic handles itself via 'transactions' state update,
+      // but we need to close or update the modal content if the specific item is gone.
+      // The modal uses 'listModalTransactions' state which is static until reset.
+      setIsListModalOpen(false); // Close modal to avoid stale data, simple fix.
     }
   };
 
   const handleToggleStatus = async (id: string) => {
     if (!user) return;
-
-    // Block toggling virtual transactions directly for now (or implement logic to mark all as paid)
-    if (id.startsWith('virtual-invoice')) {
-      return; 
-    }
+    if (id.startsWith('virtual-invoice')) return; 
 
     const t = transactions.find(tx => tx.id === id);
     if (t) {
@@ -353,24 +381,10 @@ function App() {
       {/* Content */}
       {currentView === 'DASHBOARD' && (
         <Dashboard 
-          // Pass aggregated transactions to Dashboard
           transactions={processedTransactions} 
           filter={filter} 
           cards={cards}
-          // The history chart still needs raw data to calculate previous months, 
-          // but we can pass all transactions and let Dashboard handle history,
-          // OR pass a special prop. For simplicity, we pass processed for summary cards
-          // and Dashboard will use internal logic for history if needed, but Dashboard
-          // currently expects `transactions` to be everything.
-          // FIX: The Dashboard expects ALL transactions to build history.
-          // We will pass `transactions` (raw) for history, but use `processedTransactions` for Summary.
-          // Let's modify Dashboard props to accept both or handle it inside.
-          // Actually, let's keep it simple: Dashboard usually filters `transactions` internally.
-          // We should modify Dashboard to accept `summaryTransactions` (processed) and `allTransactions` (raw).
-          // For now, let's just pass `processedTransactions` as the main `transactions` prop. 
-          // NOTE: This means History chart will show "Virtual Invoices" instead of raw card txs. This is actually BETTER/Correct.
           onViewDetails={(type) => { 
-             // When clicking summary cards, show list
              const filteredT = getFilteredTransactionsForView().filter(t => {
                 if (type === 'INCOME') return t.type === TransactionType.INCOME;
                 if (type === 'EXPENSE') return t.type !== TransactionType.INCOME;
@@ -393,11 +407,9 @@ function App() {
           filter={filter} 
           onEdit={(t) => { 
              if (t.isVirtual) {
-                // If clicking a virtual invoice, maybe go to Cards view or open modal
                 const card = cards.find(c => c.id === t.cardId);
                 if (card) {
                    setCurrentView('CARDS');
-                   // Ideally scroll to card or open it, but switching view is good start
                 }
              } else {
                 setEditingTransaction(t); setIsTxModalOpen(true); 
@@ -412,7 +424,7 @@ function App() {
       {currentView === 'CARDS' && (
         <CardsView 
           cards={cards} 
-          transactions={transactions} // Cards view needs RAW transactions to show details
+          transactions={transactions} 
           filterMonth={filter.month} 
           filterYear={filter.year} 
           onCardClick={(cardId) => {
@@ -429,7 +441,7 @@ function App() {
           }}
           onAddTransaction={(cardId) => {
             setEditingTransaction({ 
-              id: '', // Empty ID tells the form it's new
+              id: '', 
               description: '', amount: 0, date: new Date().toISOString(),
               type: TransactionType.CARD_EXPENSE, category: 'Outros', status: TransactionStatus.COMPLETED,
               cardId: cardId
@@ -463,6 +475,9 @@ function App() {
         onClose={() => setIsListModalOpen(false)}
         title={listModalTitle}
         transactions={listModalTransactions}
+        // Connect Edit/Delete actions for items inside the list (like Card Invoice Items)
+        onEdit={(t) => { setEditingTransaction(t); setIsTxModalOpen(true); }}
+        onDelete={handleDelete}
       />
 
     </Layout>

@@ -21,7 +21,8 @@ import {
   doc, 
   query, 
   where, 
-  getDocs
+  getDocs,
+  writeBatch
 } from "firebase/firestore";
 import { addMonths } from 'date-fns';
 
@@ -66,12 +67,10 @@ const cleanPayload = (data: any) => {
 
 export const generateInstallments = (baseTransaction: Transaction, totalInstallments: number, amountType: 'total' | 'installment' = 'installment'): Transaction[] => {
   // Fix: Parse input date (YYYY-MM-DD string) explicitly to local time noon to avoid timezone rollovers
-  // e.g., "2026-01-01" -> new Date(2026, 0, 1, 12, 0, 0)
   const [y, m, d] = baseTransaction.date.split('T')[0].split('-').map(Number);
   const baseDateObj = new Date(y, m - 1, d, 12, 0, 0);
 
   if (totalInstallments <= 1) {
-    // Return single transaction with corrected time
     return [{
         ...baseTransaction,
         date: baseDateObj.toISOString()
@@ -87,14 +86,12 @@ export const generateInstallments = (baseTransaction: Transaction, totalInstallm
     : baseTransaction.amount;
 
   for (let i = 0; i < totalInstallments; i++) {
-    // Use date-fns addMonths to handle "Jan 31 + 1 month = Feb 28" correctly
     const newDateObj = addMonths(baseDateObj, i);
 
     transactions.push({
       ...baseTransaction,
-      id: crypto.randomUUID(), // Temp ID, will be replaced by Firestore
+      id: crypto.randomUUID(), // Temp ID
       amount: parseFloat(installmentValue.toFixed(2)),
-      // Save as ISO string. Since we set hour to 12:00, it stays safe from timezone shifts.
       date: newDateObj.toISOString(), 
       installments: {
         current: i + 1,
@@ -147,7 +144,6 @@ export const StorageService = {
   },
 
   // --- Transactions ---
-  // Standard Path: Root collection 'transactions' filtered by userId
   
   getTransactions: async (userId: string): Promise<Transaction[]> => {
     const q = query(collection(db, "transactions"), where("userId", "==", userId));
@@ -168,8 +164,67 @@ export const StorageService = {
     await updateDoc(ref, payload);
   },
 
+  // Batch Update for Installments
+  updateTransactionSeries: async (userId: string, groupId: string, baseTransaction: Transaction, startFromDate: string) => {
+    // 1. Find all transactions in the group belonging to user
+    const q = query(
+      collection(db, "transactions"), 
+      where("userId", "==", userId),
+      where("installments.groupId", "==", groupId)
+    );
+    const snapshot = await getDocs(q);
+    const batch = writeBatch(db);
+
+    const targetDate = new Date(startFromDate);
+
+    snapshot.docs.forEach(docSnap => {
+        const data = docSnap.data();
+        const itemDate = new Date(data.date);
+
+        // Only update if date is equal or after the target transaction
+        if (itemDate >= targetDate) {
+            const ref = doc(db, "transactions", docSnap.id);
+            // Update fields but PRESERVE the date and installment index
+            batch.update(ref, {
+                description: baseTransaction.description,
+                amount: baseTransaction.amount,
+                category: baseTransaction.category,
+                type: baseTransaction.type,
+                cardId: baseTransaction.cardId || null,
+                // Do NOT update date, status or installment current index
+            });
+        }
+    });
+
+    await batch.commit();
+  },
+
   deleteTransaction: async (userId: string, id: string) => {
     await deleteDoc(doc(db, "transactions", id));
+  },
+
+  // Batch Delete for Installments
+  deleteTransactionSeries: async (userId: string, groupId: string, startFromDate: string) => {
+     const q = query(
+      collection(db, "transactions"), 
+      where("userId", "==", userId),
+      where("installments.groupId", "==", groupId)
+    );
+    const snapshot = await getDocs(q);
+    const batch = writeBatch(db);
+    const targetDate = new Date(startFromDate);
+
+    snapshot.docs.forEach(docSnap => {
+        const data = docSnap.data();
+        const itemDate = new Date(data.date);
+        
+        // Delete if date is equal or after target
+        if (itemDate >= targetDate) {
+            batch.delete(doc(db, "transactions", docSnap.id));
+        }
+    });
+
+    await batch.commit();
   },
 
   toggleStatus: async (userId: string, t: Transaction) => {
@@ -179,7 +234,6 @@ export const StorageService = {
   },
 
   // --- Cards ---
-  // Standard Path: Root collection 'cards' filtered by userId
 
   getCards: async (userId: string): Promise<CreditCard[]> => {
     const q = query(collection(db, "cards"), where("userId", "==", userId));

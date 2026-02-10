@@ -3,17 +3,20 @@ import { Modal } from './ui/Modal';
 import { Transaction, TransactionType, TransactionStatus } from '../types';
 import { formatCurrency } from '../services/storage';
 import { format, isBefore, startOfDay } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { ArrowUpRight, ArrowDownRight, CreditCard } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, CreditCard, Edit2, Trash2 } from 'lucide-react';
 
 interface TransactionListModalProps {
   isOpen: boolean;
   onClose: () => void;
   title: string;
   transactions: Transaction[];
+  onEdit?: (t: Transaction) => void;
+  onDelete?: (id: string) => void;
 }
 
-export const TransactionListModal: React.FC<TransactionListModalProps> = ({ isOpen, onClose, title, transactions }) => {
+export const TransactionListModal: React.FC<TransactionListModalProps> = ({ 
+  isOpen, onClose, title, transactions, onEdit, onDelete 
+}) => {
   
   const getStatusDisplay = (t: Transaction) => {
       const isCompleted = t.status === TransactionStatus.COMPLETED;
@@ -21,7 +24,7 @@ export const TransactionListModal: React.FC<TransactionListModalProps> = ({ isOp
       const txDate = startOfDay(new Date(t.date));
       const isOverdue = !isCompleted && isBefore(txDate, today);
 
-      if (isCompleted) return null; // Don't show tag if completed in this list, or use green check?
+      if (isCompleted) return null;
 
       if (isOverdue) {
           return <span className="text-[10px] text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded font-bold uppercase">Vencido</span>;
@@ -36,7 +39,7 @@ export const TransactionListModal: React.FC<TransactionListModalProps> = ({ isOp
           <p className="text-center text-slate-400 py-8">Nenhuma transação encontrada.</p>
         ) : (
           transactions.map(t => (
-            <div key={t.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100">
+            <div key={t.id} className="group flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100">
               <div className="flex items-center gap-3">
                  <div className={`p-2 rounded-lg ${
                     t.type === TransactionType.INCOME ? 'bg-emerald-100 text-emerald-600' :
@@ -47,18 +50,39 @@ export const TransactionListModal: React.FC<TransactionListModalProps> = ({ isOp
                      t.type === TransactionType.CARD_EXPENSE ? <CreditCard size={16} /> : <ArrowDownRight size={16} />}
                   </div>
                   <div>
-                    <p className="font-medium text-slate-800 text-sm">{t.description}</p>
+                    <p className="font-medium text-slate-800 text-sm flex items-center gap-2">
+                        {t.description}
+                        {t.installments && <span className="text-[10px] text-slate-400">({t.installments.current}/{t.installments.total})</span>}
+                    </p>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-slate-400">{format(new Date(t.date), 'dd/MM/yyyy')}</span>
                       <span className="text-xs bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">{t.category}</span>
                     </div>
                   </div>
               </div>
-              <div className="text-right">
-                <p className={`font-bold text-sm ${t.type === TransactionType.INCOME ? 'text-emerald-600' : 'text-slate-800'}`}>
-                  {t.type === TransactionType.INCOME ? '+' : '-'} {formatCurrency(t.amount)}
-                </p>
-                {getStatusDisplay(t)}
+              <div className="flex items-center gap-4">
+                <div className="text-right">
+                  <p className={`font-bold text-sm ${t.type === TransactionType.INCOME ? 'text-emerald-600' : 'text-slate-800'}`}>
+                    {t.type === TransactionType.INCOME ? '+' : '-'} {formatCurrency(t.amount)}
+                  </p>
+                  {getStatusDisplay(t)}
+                </div>
+                
+                {/* Actions (Only show if handlers provided) */}
+                {(onEdit || onDelete) && (
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {onEdit && (
+                            <button onClick={() => onEdit(t)} className="p-1.5 text-slate-400 hover:bg-white hover:text-blue-500 rounded-md transition-all">
+                                <Edit2 size={14} />
+                            </button>
+                        )}
+                        {onDelete && (
+                            <button onClick={() => onDelete(t.id)} className="p-1.5 text-slate-400 hover:bg-white hover:text-red-500 rounded-md transition-all">
+                                <Trash2 size={14} />
+                            </button>
+                        )}
+                    </div>
+                )}
               </div>
             </div>
           ))
