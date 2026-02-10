@@ -96,21 +96,24 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({ isOpen, onClose, c
     console.log("🔵 handleConfirm chamado!");
     console.log("🔵 parsedData:", parsedData);
     console.log("🔵 selectedCardId:", selectedCardId);
-    console.log("🔵 Mês/Ano selecionado:", selectedMonth + 1, "/", selectedYear);
+    console.log("🔵 Mês/Ano selecionado pelo usuário:", selectedMonth + 1, "/", selectedYear);
     
     const transactions: Transaction[] = parsedData.map((item, index) => {
-      // Pega o dia da data original parseada pela IA
+      // Pega APENAS o DIA da data original (ignora mês e ano)
       const originalDate = new Date(item.date);
       const originalDay = originalDate.getDate();
       
-      // SEMPRE usa o mês/ano selecionado, mantendo apenas o DIA original
+      // SEMPRE usa o mês/ano selecionado pelo usuário
       // Se o dia for inválido para o mês (ex: 31 em fevereiro), ajusta para o último dia do mês
       const lastDayOfMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
       const validDay = Math.min(originalDay, lastDayOfMonth);
       
-      const newDate = new Date(selectedYear, selectedMonth, validDay);
+      // Cria a data no horário local (meio-dia para evitar problemas de timezone)
+      const newDate = new Date(selectedYear, selectedMonth, validDay, 12, 0, 0);
       
-      console.log(`📅 Transação ${index + 1}: ${item.description} - ${item.date} → ${newDate.toISOString().split('T')[0]}`);
+      console.log(`📅 Transação ${index + 1}: ${item.description}`);
+      console.log(`   Original: ${item.date} (dia ${originalDay})`);
+      console.log(`   Nova data: ${newDate.toISOString()} → ${validDay}/${selectedMonth + 1}/${selectedYear}`);
       
       return {
         id: crypto.randomUUID(),
@@ -125,8 +128,7 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({ isOpen, onClose, c
     });
     
     console.log("🚀 TRANSAÇÕES PRONTAS PARA IMPORTAR:", transactions);
-    console.log("🚀 Todas as transações em:", `${selectedMonth + 1}/${selectedYear}`);
-    console.log("🚀 Quantidade de transações:", transactions.length);
+    console.log(`🚀 Todas as ${transactions.length} transações forçadas para: ${selectedMonth + 1}/${selectedYear}`);
     console.log("🚀 Chamando onImport...");
     
     onImport(transactions);
