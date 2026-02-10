@@ -23,6 +23,7 @@ import {
   where, 
   getDocs
 } from "firebase/firestore";
+import { addMonths } from 'date-fns';
 
 // Firebase Configuration
 const firebaseConfig = {
@@ -64,11 +65,21 @@ const cleanPayload = (data: any) => {
 };
 
 export const generateInstallments = (baseTransaction: Transaction, totalInstallments: number, amountType: 'total' | 'installment' = 'installment'): Transaction[] => {
-  if (totalInstallments <= 1) return [baseTransaction];
+  // Fix: Parse input date (YYYY-MM-DD string) explicitly to local time noon to avoid timezone rollovers
+  // e.g., "2026-01-01" -> new Date(2026, 0, 1, 12, 0, 0)
+  const [y, m, d] = baseTransaction.date.split('T')[0].split('-').map(Number);
+  const baseDateObj = new Date(y, m - 1, d, 12, 0, 0);
+
+  if (totalInstallments <= 1) {
+    // Return single transaction with corrected time
+    return [{
+        ...baseTransaction,
+        date: baseDateObj.toISOString()
+    }];
+  }
 
   const transactions: Transaction[] = [];
   const groupId = crypto.randomUUID();
-  const baseDate = new Date(baseTransaction.date);
 
   // Calculate amount per installment
   const installmentValue = amountType === 'total' 
@@ -76,14 +87,15 @@ export const generateInstallments = (baseTransaction: Transaction, totalInstallm
     : baseTransaction.amount;
 
   for (let i = 0; i < totalInstallments; i++) {
-    const newDate = new Date(baseDate);
-    newDate.setMonth(baseDate.getMonth() + i);
+    // Use date-fns addMonths to handle "Jan 31 + 1 month = Feb 28" correctly
+    const newDateObj = addMonths(baseDateObj, i);
 
     transactions.push({
       ...baseTransaction,
       id: crypto.randomUUID(), // Temp ID, will be replaced by Firestore
       amount: parseFloat(installmentValue.toFixed(2)),
-      date: newDate.toISOString(),
+      // Save as ISO string. Since we set hour to 12:00, it stays safe from timezone shifts.
+      date: newDateObj.toISOString(), 
       installments: {
         current: i + 1,
         total: totalInstallments,

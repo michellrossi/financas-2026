@@ -29,14 +29,14 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ isOpen, onClos
       setDate(initialData.date.split('T')[0]);
       setType(initialData.type);
       setCategory(initialData.category);
-      setCardId(initialData.cardId || '');
+      setCardId(initialData.cardId || (cards.length > 0 ? cards[0].id : ''));
       setStatus(initialData.status);
       setInstallments(1);
       setAmountType('installment');
     } else {
       resetForm();
     }
-  }, [initialData, isOpen]);
+  }, [initialData, isOpen, cards]);
 
   const resetForm = () => {
     setDescription('');
@@ -44,22 +44,50 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ isOpen, onClos
     setDate(new Date().toISOString().split('T')[0]);
     setType(TransactionType.EXPENSE);
     setCategory(EXPENSE_CATEGORIES[0]);
-    setCardId(cards[0]?.id || '');
+    // Auto-select first card to avoid undefined cardId
+    setCardId(cards.length > 0 ? cards[0].id : '');
     setStatus(TransactionStatus.COMPLETED);
     setInstallments(1);
     setAmountType('installment');
+  };
+
+  const handleTypeChange = (newType: TransactionType) => {
+      setType(newType);
+      // Update categories based on type
+      if (newType === TransactionType.INCOME) {
+          setCategory(INCOME_CATEGORIES[0]);
+      } else {
+          setCategory(EXPENSE_CATEGORIES[0]);
+      }
+      
+      // If switching to CARD, ensure a card is selected
+      if (newType === TransactionType.CARD_EXPENSE && !cardId && cards.length > 0) {
+          setCardId(cards[0].id);
+      }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!description || !amount || !category) return;
 
-    // Construct object avoiding undefined values for Firestore
+    // Safety check for Card Transactions
+    if (type === TransactionType.CARD_EXPENSE && !cardId) {
+        alert("Por favor, selecione um cartão.");
+        return;
+    }
+
+    // Construct date at NOON local time to avoid timezone offsets when saving
+    const [y, m, d] = date.split('-').map(Number);
+    const dateAtNoon = new Date(y, m - 1, d, 12, 0, 0);
+
+    // Construct object
     const newTransaction: Transaction = {
       id: initialData?.id || crypto.randomUUID(),
       description,
       amount: parseFloat(amount),
-      date: new Date(date).toISOString(),
+      // Send just the YYYY-MM-DD string as "date" prop to generateInstallments
+      // generateInstallments in storage.ts will handle the parsing to Date object
+      date: dateAtNoon.toISOString().split('T')[0], 
       type,
       category,
       status: type === TransactionType.CARD_EXPENSE ? TransactionStatus.COMPLETED : status,
@@ -90,7 +118,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ isOpen, onClos
               <button
                 key={t.id}
                 type="button"
-                onClick={() => setType(t.id as TransactionType)}
+                onClick={() => handleTypeChange(t.id as TransactionType)}
                 className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
                   type === t.id ? `${t.color} shadow-md` : 'text-slate-500 hover:text-slate-700'
                 }`}
@@ -165,7 +193,9 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ isOpen, onClos
                   value={cardId}
                   onChange={(e) => setCardId(e.target.value)}
                   className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  required
                 >
+                  <option value="" disabled>Selecione</option>
                   {cards.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
