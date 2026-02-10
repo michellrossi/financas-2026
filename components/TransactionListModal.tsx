@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { Modal } from './ui/Modal';
 import { Transaction, TransactionType, TransactionStatus } from '../types';
 import { formatCurrency } from '../services/storage';
 import { format } from 'date-fns';
-import { ArrowUpRight, ArrowDownRight, CreditCard, Edit2, Trash2 } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, CreditCard, Edit2, Trash2, Calendar, DollarSign } from 'lucide-react';
 
 interface TransactionListModalProps {
   isOpen: boolean;
@@ -17,17 +17,60 @@ interface TransactionListModalProps {
 export const TransactionListModal: React.FC<TransactionListModalProps> = ({ 
   isOpen, onClose, title, transactions, onEdit, onDelete 
 }) => {
+  const [sortBy, setSortBy] = useState<'date' | 'amount'>('date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   
-  // Filter only COMPLETED (Paid/Received) transactions for this view as requested
-  const visibleTransactions = transactions.filter(t => t.status === TransactionStatus.COMPLETED);
+  // Filter only COMPLETED (Paid/Received) transactions and Sort them
+  const sortedTransactions = useMemo(() => {
+    // 1. Filter
+    const visible = transactions.filter(t => t.status === TransactionStatus.COMPLETED);
+
+    // 2. Sort
+    return visible.sort((a, b) => {
+        const valA = sortBy === 'date' ? new Date(a.date).getTime() : a.amount;
+        const valB = sortBy === 'date' ? new Date(b.date).getTime() : b.amount;
+
+        if (sortOrder === 'asc') {
+            return valA - valB;
+        }
+        return valB - valA;
+    });
+  }, [transactions, sortBy, sortOrder]);
+
+  const handleSortChange = (field: 'date' | 'amount') => {
+    if (sortBy === field) {
+        setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+        setSortBy(field);
+        setSortOrder('desc');
+    }
+  };
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title} maxWidth="max-w-2xl">
-      <div className="space-y-2">
-        {visibleTransactions.length === 0 ? (
+      {/* Sort Controls */}
+      <div className="flex justify-end mb-4 sticky top-0 bg-white pt-2 pb-2 z-10">
+         <div className="flex bg-slate-100 p-1 rounded-xl shadow-sm">
+           <button 
+             onClick={() => handleSortChange('date')}
+             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${sortBy === 'date' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+           >
+             <Calendar size={14} /> Data {sortBy === 'date' && (sortOrder === 'asc' ? '↑' : '↓')}
+           </button>
+           <button 
+             onClick={() => handleSortChange('amount')}
+             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${sortBy === 'amount' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+           >
+             <DollarSign size={14} /> Valor {sortBy === 'amount' && (sortOrder === 'asc' ? '↑' : '↓')}
+           </button>
+         </div>
+      </div>
+
+      <div className="space-y-2 pb-4">
+        {sortedTransactions.length === 0 ? (
           <p className="text-center text-slate-400 py-8">Nenhuma transação concluída neste período.</p>
         ) : (
-          visibleTransactions.map(t => (
+          sortedTransactions.map(t => (
             <div key={t.id} className="group flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0">
               {/* Left: Icon & Description */}
               <div className="flex items-center gap-3 flex-1 min-w-0">
