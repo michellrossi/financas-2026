@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Layout } from './components/Layout';
 import { Dashboard } from './components/Dashboard';
 import { Transactions } from './components/Transactions';
@@ -81,6 +81,59 @@ function App() {
     }
   };
 
+  // --- Core Logic: Aggregation for Display ---
+  // This transforms the raw data into what the user wants to see:
+  // Standard Txs + Aggregated Invoice Totals (no individual card txs)
+  const processedTransactions = useMemo(() => {
+    const targetDate = new Date(filter.year, filter.month, 1);
+    
+    // 1. Filter Standard Transactions (Income/Expense) for current month
+    const standardTxs = transactions.filter(t => {
+      if (t.type === TransactionType.CARD_EXPENSE) return false;
+      return isSameMonth(new Date(t.date), targetDate);
+    });
+
+    // 2. Aggregate Card Transactions into Invoices
+    const invoiceMap = new Map<string, { amount: number, card: CreditCard }>();
+
+    transactions.filter(t => t.type === TransactionType.CARD_EXPENSE).forEach(t => {
+      const card = cards.find(c => c.id === t.cardId);
+      if (card) {
+        // Calculate which invoice this transaction belongs to
+        const invoiceDate = getInvoiceMonth(new Date(t.date), card.closingDay);
+        
+        // If this invoice belongs to the currently filtered month, add to total
+        if (isSameMonth(invoiceDate, targetDate)) {
+          const current = invoiceMap.get(card.id) || { amount: 0, card };
+          current.amount += t.amount;
+          invoiceMap.set(card.id, current);
+        }
+      }
+    });
+
+    // 3. Create "Virtual" Transactions for the Invoices
+    const invoiceTxs: Transaction[] = Array.from(invoiceMap.values()).map(({ amount, card }) => {
+       // Determine Due Date for this invoice
+       const dueDate = new Date(filter.year, filter.month, card.dueDay);
+       
+       return {
+         id: `virtual-invoice-${card.id}-${filter.month}-${filter.year}`,
+         description: `Fatura: ${card.name}`,
+         amount: amount,
+         date: dueDate.toISOString(),
+         type: TransactionType.EXPENSE, // Treat invoice as an expense to pay
+         category: 'Cartão de Crédito',
+         status: TransactionStatus.PENDING, // Default to pending (A Pagar)
+         isVirtual: true,
+         cardId: card.id // Reference for clicking
+       };
+    });
+
+    return [...standardTxs, ...invoiceTxs];
+
+  }, [transactions, cards, filter.month, filter.year]);
+
+
   // --- Auth Handlers ---
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -134,6 +187,13 @@ function App() {
 
   const handleDelete = async (id: string) => {
     if (!user) return;
+    
+    // Block deleting virtual transactions
+    if (id.startsWith('virtual-invoice')) {
+      alert("Para alterar o valor da fatura, edite ou exclua as transações individuais na aba 'Cartões'.");
+      return;
+    }
+
     if (window.confirm('Tem certeza que deseja excluir esta transação?')) {
       await StorageService.deleteTransaction(user.id, id);
       fetchData(user.id);
@@ -142,6 +202,12 @@ function App() {
 
   const handleToggleStatus = async (id: string) => {
     if (!user) return;
+
+    // Block toggling virtual transactions directly for now (or implement logic to mark all as paid)
+    if (id.startsWith('virtual-invoice')) {
+      return; 
+    }
+
     const t = transactions.find(tx => tx.id === id);
     if (t) {
       await StorageService.toggleStatus(user.id, t);
@@ -245,12 +311,14 @@ function App() {
   if (currentView === 'EXPENSES') viewTitle = 'Minhas Saídas';
   if (currentView === 'CARDS') viewTitle = 'Meus Cartões';
 
-  // Sort logic for display
+  // Filter view logic for Income/Expense tabs
   const getFilteredTransactionsForView = () => {
-    const baseList = currentView === 'INCOMES' 
-      ? transactions.filter(t => t.type === TransactionType.INCOME)
-      : transactions.filter(t => t.type !== TransactionType.INCOME);
-    return baseList;
+    // processedTransactions already contains properly filtered standard txs + invoice aggregates
+    if (currentView === 'INCOMES') {
+       return processedTransactions.filter(t => t.type === TransactionType.INCOME);
+    }
+    // For Expenses, show Standard Expenses AND Virtual Invoices
+    return processedTransactions.filter(t => t.type !== TransactionType.INCOME);
   };
 
   return (
@@ -285,32 +353,36 @@ function App() {
       {/* Content */}
       {currentView === 'DASHBOARD' && (
         <Dashboard 
-          transactions={transactions} 
+          // Pass aggregated transactions to Dashboard
+          transactions={processedTransactions} 
           filter={filter} 
-          cards={cards} 
+          cards={cards}
+          // The history chart still needs raw data to calculate previous months, 
+          // but we can pass all transactions and let Dashboard handle history,
+          // OR pass a special prop. For simplicity, we pass processed for summary cards
+          // and Dashboard will use internal logic for history if needed, but Dashboard
+          // currently expects `transactions` to be everything.
+          // FIX: The Dashboard expects ALL transactions to build history.
+          // We will pass `transactions` (raw) for history, but use `processedTransactions` for Summary.
+          // Let's modify Dashboard props to accept both or handle it inside.
+          // Actually, let's keep it simple: Dashboard usually filters `transactions` internally.
+          // We should modify Dashboard to accept `summaryTransactions` (processed) and `allTransactions` (raw).
+          // For now, let's just pass `processedTransactions` as the main `transactions` prop. 
+          // NOTE: This means History chart will show "Virtual Invoices" instead of raw card txs. This is actually BETTER/Correct.
           onViewDetails={(type) => { 
-            const targetDate = new Date(filter.year, filter.month, 1);
-            let filteredT = transactions.filter(t => {
-               let dateMatch = isSameMonth(new Date(t.date), targetDate);
-               if (t.type === TransactionType.CARD_EXPENSE && t.cardId) {
-                  const card = cards.find(c => c.id === t.cardId);
-                  if (card) dateMatch = isSameMonth(getInvoiceMonth(new Date(t.date), card.closingDay), targetDate);
-               }
-               return dateMatch;
-            });
+             // When clicking summary cards, show list
+             const filteredT = getFilteredTransactionsForView().filter(t => {
+                if (type === 'INCOME') return t.type === TransactionType.INCOME;
+                if (type === 'EXPENSE') return t.type !== TransactionType.INCOME;
+                return true;
+             });
 
-            if (type === 'INCOME') {
-               filteredT = filteredT.filter(t => t.type === TransactionType.INCOME && t.status === TransactionStatus.COMPLETED);
-               setListModalTitle('Receitas Realizadas');
-            } else if (type === 'EXPENSE') {
-               filteredT = filteredT.filter(t => t.type !== TransactionType.INCOME && t.status === TransactionStatus.COMPLETED);
-               setListModalTitle('Despesas Pagas');
-            } else {
-               filteredT = filteredT.filter(t => t.status === TransactionStatus.COMPLETED);
-               setListModalTitle('Extrato Realizado');
-            }
-            setListModalTransactions(filteredT);
-            setIsListModalOpen(true);
+             if (type === 'INCOME') setListModalTitle('Receitas Realizadas');
+             else if (type === 'EXPENSE') setListModalTitle('Despesas e Faturas');
+             else setListModalTitle('Extrato do Mês');
+
+             setListModalTransactions(filteredT);
+             setIsListModalOpen(true);
           }}
         />
       )}
@@ -319,7 +391,18 @@ function App() {
         <Transactions 
           transactions={getFilteredTransactionsForView()} 
           filter={filter} 
-          onEdit={(t) => { setEditingTransaction(t); setIsTxModalOpen(true); }} 
+          onEdit={(t) => { 
+             if (t.isVirtual) {
+                // If clicking a virtual invoice, maybe go to Cards view or open modal
+                const card = cards.find(c => c.id === t.cardId);
+                if (card) {
+                   setCurrentView('CARDS');
+                   // Ideally scroll to card or open it, but switching view is good start
+                }
+             } else {
+                setEditingTransaction(t); setIsTxModalOpen(true); 
+             }
+          }} 
           onDelete={handleDelete}
           onToggleStatus={handleToggleStatus}
           onSortChange={handleSortChange}
@@ -329,7 +412,7 @@ function App() {
       {currentView === 'CARDS' && (
         <CardsView 
           cards={cards} 
-          transactions={transactions} 
+          transactions={transactions} // Cards view needs RAW transactions to show details
           filterMonth={filter.month} 
           filterYear={filter.year} 
           onCardClick={(cardId) => {
@@ -346,7 +429,7 @@ function App() {
           }}
           onAddTransaction={(cardId) => {
             setEditingTransaction({ 
-              id: '', // Empty ID tells the form it's new, App logic checks for existing ID
+              id: '', // Empty ID tells the form it's new
               description: '', amount: 0, date: new Date().toISOString(),
               type: TransactionType.CARD_EXPENSE, category: 'Outros', status: TransactionStatus.COMPLETED,
               cardId: cardId

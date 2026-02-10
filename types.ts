@@ -34,6 +34,7 @@ export interface Transaction {
     total: number;
     groupId: string;
   };
+  isVirtual?: boolean; // For aggregated invoice display
 }
 
 export interface User {

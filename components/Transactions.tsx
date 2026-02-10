@@ -3,7 +3,7 @@ import { Transaction, TransactionType, TransactionStatus, FilterState } from '..
 import { formatCurrency } from '../services/storage';
 import { format, isBefore, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ArrowUp, ArrowDown, CreditCard, Edit2, Trash2, Calendar, DollarSign } from 'lucide-react';
+import { ArrowUp, ArrowDown, CreditCard, Edit2, Trash2, Calendar, DollarSign, Receipt } from 'lucide-react';
 
 interface TransactionsProps {
   transactions: Transaction[];
@@ -19,18 +19,15 @@ export const Transactions: React.FC<TransactionsProps> = ({
 }) => {
   const { month, year, sortBy, sortOrder } = filter;
 
+  // Note: 'transactions' prop passed here is already filtered/aggregated by App.tsx
+  // We just need to sort it.
   const filteredTransactions = useMemo(() => {
-    return transactions
-      .filter(t => {
-        const d = new Date(t.date);
-        return d.getMonth() === month && d.getFullYear() === year;
-      })
-      .sort((a, b) => {
+    return transactions.sort((a, b) => {
         let valA = sortBy === 'date' ? new Date(a.date).getTime() : a.amount;
         let valB = sortBy === 'date' ? new Date(b.date).getTime() : b.amount;
         return sortOrder === 'asc' ? valA - valB : valB - valA;
       });
-  }, [transactions, month, year, sortBy, sortOrder]);
+  }, [transactions, sortBy, sortOrder]);
 
   const getStatusInfo = (t: Transaction) => {
      const isCompleted = t.status === TransactionStatus.COMPLETED;
@@ -89,23 +86,27 @@ export const Transactions: React.FC<TransactionsProps> = ({
            </div>
         ) : filteredTransactions.map((t) => {
           const statusInfo = getStatusInfo(t);
+          const isVirtual = t.isVirtual === true;
           
           return (
-            <div key={t.id} className="bg-white rounded-2xl p-4 flex flex-row items-center justify-between shadow-sm border border-slate-100 hover:shadow-md transition-all gap-4">
+            <div key={t.id} className={`bg-white rounded-2xl p-4 flex flex-row items-center justify-between shadow-sm border ${isVirtual ? 'border-indigo-100 bg-indigo-50/30' : 'border-slate-100'} hover:shadow-md transition-all gap-4`}>
               
               {/* Left Section: Icon & Details */}
               <div className="flex items-center gap-4">
                   <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${
                     t.type === TransactionType.INCOME ? 'bg-emerald-50 text-emerald-500' :
-                    t.type === TransactionType.CARD_EXPENSE ? 'bg-indigo-50 text-indigo-500' :
+                    isVirtual ? 'bg-indigo-100 text-indigo-600' :
                     'bg-rose-50 text-rose-500'
                   }`}>
                     {t.type === TransactionType.INCOME ? <ArrowUp size={24} /> : 
-                    t.type === TransactionType.CARD_EXPENSE ? <CreditCard size={24} /> : <ArrowDown size={24} />}
+                     isVirtual ? <Receipt size={24} /> : <ArrowDown size={24} />}
                   </div>
 
                   <div className="flex flex-col gap-1">
-                    <span className="font-bold text-slate-800 text-base">{t.description}</span>
+                    <span className="font-bold text-slate-800 text-base flex items-center gap-2">
+                        {t.description}
+                        {isVirtual && <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded uppercase">Fatura</span>}
+                    </span>
                     <div className="flex items-center gap-2 text-xs">
                       <span className="text-slate-400">{format(new Date(t.date), 'dd/MM/yyyy')}</span>
                       <span className="px-2 py-0.5 bg-slate-100 rounded text-slate-500 uppercase font-semibold text-[10px] tracking-wide">{t.category}</span>
@@ -127,17 +128,27 @@ export const Transactions: React.FC<TransactionsProps> = ({
                   <div className="flex items-center gap-3">
                     <button 
                       onClick={() => onToggleStatus(t.id)}
-                      className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors border ${statusInfo.style}`}
+                      disabled={isVirtual}
+                      className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors border ${statusInfo.style} ${isVirtual ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                         {statusInfo.label}
                     </button>
                     
-                    <button onClick={() => onEdit(t)} className="text-slate-400 hover:text-blue-500 transition-colors">
-                      <Edit2 size={16} />
-                    </button>
-                    <button onClick={() => onDelete(t.id)} className="text-slate-400 hover:text-red-500 transition-colors">
-                      <Trash2 size={16} />
-                    </button>
+                    {!isVirtual && (
+                        <>
+                        <button onClick={() => onEdit(t)} className="text-slate-400 hover:text-blue-500 transition-colors">
+                            <Edit2 size={16} />
+                        </button>
+                        <button onClick={() => onDelete(t.id)} className="text-slate-400 hover:text-red-500 transition-colors">
+                            <Trash2 size={16} />
+                        </button>
+                        </>
+                    )}
+                    {isVirtual && (
+                         <button onClick={() => onEdit(t)} className="text-indigo-400 hover:text-indigo-600 transition-colors" title="Ver detalhes no cartão">
+                            <CreditCard size={16} />
+                         </button>
+                    )}
                   </div>
               </div>
             </div>
