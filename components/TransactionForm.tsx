@@ -22,10 +22,21 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ isOpen, onClos
   const [amountType, setAmountType] = useState<'total' | 'installment'>('installment');
   const [status, setStatus] = useState<TransactionStatus>(TransactionStatus.COMPLETED);
 
+  // Helper to determine if we are strictly editing an existing item (has ID) 
+  // vs creating a new one (id is empty string or initialData is null)
+  const isEditing = !!(initialData && initialData.id);
+
   useEffect(() => {
     if (initialData) {
       setDescription(initialData.description);
-      setAmount(initialData.amount.toString());
+      
+      // If it's a new transaction context (id is empty) and amount is 0, show empty string
+      if (!initialData.id && initialData.amount === 0) {
+          setAmount('');
+      } else {
+          setAmount(initialData.amount.toString());
+      }
+
       setDate(initialData.date.split('T')[0]);
       setType(initialData.type);
       setCategory(initialData.category);
@@ -105,7 +116,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ isOpen, onClos
   const categories = type === TransactionType.INCOME ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={initialData ? 'Editar Transação' : 'Nova Transação'}>
+    <Modal isOpen={isOpen} onClose={onClose} title={isEditing ? 'Editar Transação' : 'Nova Transação'}>
         <form onSubmit={handleSubmit} className="space-y-4">
           
           {/* Type Selection */}
@@ -203,8 +214,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ isOpen, onClos
             )}
           </div>
 
-          {/* Installments Logic */}
-          {!initialData && (
+          {/* Installments Logic - Show only if creating NEW transaction (no ID) */}
+          {!isEditing && (
              <div className="space-y-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
                 <div className="flex gap-4 items-end">
                   <div className="flex-1">
