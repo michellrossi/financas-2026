@@ -5,6 +5,31 @@ import { AIService, AIParsedTransaction } from '../services/ai';
 import { Sparkles, Loader2, CheckCircle, AlertCircle, ArrowUp, ArrowDown, Key } from 'lucide-react';
 import { formatCurrency } from '../services/storage';
 
+/* =========================
+   UTILIDADES DE DATA
+========================= */
+
+function parseDateBR(dateStr: string): Date {
+  const [day, month, year] = dateStr.split('/').map(Number);
+  const date = new Date(year, month - 1, day, 12, 0, 0);
+  return date;
+}
+
+function getInvoiceCycle(
+  invoiceMonth: number, // 0-11
+  invoiceYear: number,
+  closingDay: number
+) {
+  const cycleStart = new Date(invoiceYear, invoiceMonth - 1, closingDay, 0, 0, 0);
+  const cycleEnd = new Date(invoiceYear, invoiceMonth, closingDay - 1, 23, 59, 59);
+
+  return { cycleStart, cycleEnd };
+}
+
+/* =========================
+   COMPONENTE
+========================= */
+
 interface AIImportModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -12,285 +37,202 @@ interface AIImportModalProps {
   onImport: (transactions: Transaction[]) => void;
 }
 
-export const AIImportModal: React.FC<AIImportModalProps> = ({ isOpen, onClose, cards, onImport }) => {
+export const AIImportModal: React.FC<AIImportModalProps> = ({
+  isOpen,
+  onClose,
+  cards,
+  onImport
+}) => {
   const [step, setStep] = useState<'INPUT' | 'PREVIEW'>('INPUT');
   const [text, setText] = useState('');
   const [selectedCardId, setSelectedCardId] = useState('');
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth()); // 0-11
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [loading, setLoading] = useState(false);
   const [parsedData, setParsedData] = useState<AIParsedTransaction[]>([]);
   const [error, setError] = useState('');
   const [needsApiKey, setNeedsApiKey] = useState(false);
 
-  // Ensure a card is selected when the modal opens or cards are loaded
   useEffect(() => {
     if (isOpen && cards.length > 0) {
-      // If no card is selected, or the selected card is no longer in the list (deleted)
-      const currentCardExists = cards.find(c => c.id === selectedCardId);
-      if (!selectedCardId || !currentCardExists) {
-        setSelectedCardId(cards[0].id);
-      }
+      const exists = cards.find(c => c.id === selectedCardId);
+      if (!exists) setSelectedCardId(cards[0].id);
     }
   }, [isOpen, cards, selectedCardId]);
 
   const handleSelectApiKey = async () => {
     try {
       // @ts-ignore
-      if (window.aistudio && window.aistudio.openSelectKey) {
-        // @ts-ignore
-        await window.aistudio.openSelectKey();
-        setNeedsApiKey(false);
-        setError('');
-        // Retry process immediately if text is present
-        if (text) handleProcess(); 
-      } else {
-        setError("API do Google AI Studio não disponível neste navegador. Verifique a documentação.");
-      }
-    } catch (e) {
-      console.error(e);
-      setError("Falha ao selecionar chave de API.");
+      await window.aistudio.openSelectKey();
+      setNeedsApiKey(false);
+      setError('');
+      if (text) handleProcess();
+    } catch {
+      setError('Falha ao conectar com o Google AI Studio.');
     }
   };
 
   const handleProcess = async () => {
-    console.log("Botão processar clicado. Texto length:", text.length, "CardID:", selectedCardId);
-    
     if (!selectedCardId) {
-      setError("Selecione um cartão de crédito para continuar.");
+      setError('Selecione um cartão.');
       return;
     }
-    
+
     if (!text.trim()) {
-      setError("Cole o texto da fatura para continuar.");
+      setError('Cole o texto do extrato.');
       return;
     }
-    
+
     setLoading(true);
     setError('');
-    setNeedsApiKey(false);
-    
+
     try {
       const results = await AIService.parseStatement(text);
-      console.log("Resultados parseados:", results);
-      if (results.length === 0) {
-        setError('Nenhuma transação identificada. Verifique o texto copiado.');
-      } else {
-        setParsedData(results);
-        setStep('PREVIEW');
+      if (!results.length) {
+        setError('Nenhuma transação identificada.');
+        return;
       }
+      setParsedData(results);
+      setStep('PREVIEW');
     } catch (e: any) {
-      console.error("Erro no frontend ao chamar AI:", e);
       if (e.message === 'API_KEY_MISSING') {
-         setNeedsApiKey(true);
-         setError("Chave de API necessária para usar a Inteligência Artificial.");
+        setNeedsApiKey(true);
+        setError('Conecte sua conta Google para usar IA.');
       } else {
-         setError(`Erro: ${e.message || 'Falha ao processar'}`);
+        setError('Erro ao processar extrato.');
       }
     } finally {
       setLoading(false);
     }
   };
 
+  /* =========================
+     IMPORTAÇÃO COM CICLO
+  ========================= */
+
   const handleConfirm = () => {
-    console.log("🔵 handleConfirm chamado!");
-    console.log("🔵 parsedData:", parsedData);
-    console.log("🔵 selectedCardId:", selectedCardId);
-    console.log("🔵 Mês/Ano selecionado pelo usuário:", selectedMonth + 1, "/", selectedYear);
-    
-    const transactions: Transaction[] = parsedData.map((item, index) => {
-      // Pega APENAS o DIA da data original (ignora mês e ano)
-      const originalDate = new Date(item.date);
-      const originalDay = originalDate.getDate();
-      
-      // SEMPRE usa o mês/ano selecionado pelo usuário
-      // Se o dia for inválido para o mês (ex: 31 em fevereiro), ajusta para o último dia do mês
-      const lastDayOfMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
-      const validDay = Math.min(originalDay, lastDayOfMonth);
-      
-      // Cria a data no horário local (meio-dia para evitar problemas de timezone)
-      const newDate = new Date(selectedYear, selectedMonth, validDay, 12, 0, 0);
-      
-      console.log(`📅 Transação ${index + 1}: ${item.description}`);
-      console.log(`   Original: ${item.date} (dia ${originalDay})`);
-      console.log(`   Nova data: ${newDate.toISOString()} → ${validDay}/${selectedMonth + 1}/${selectedYear}`);
-      
-      return {
+    const card = cards.find(c => c.id === selectedCardId);
+    if (!card) {
+      setError('Cartão inválido.');
+      return;
+    }
+
+    const closingDay = card.closingDay ?? 1;
+
+    const { cycleStart, cycleEnd } = getInvoiceCycle(
+      selectedMonth,
+      selectedYear,
+      closingDay
+    );
+
+    console.log('🧾 Ciclo da fatura');
+    console.log('Início:', cycleStart.toISOString());
+    console.log('Fim:', cycleEnd.toISOString());
+
+    const transactions: Transaction[] = [];
+
+    parsedData.forEach((item, index) => {
+      const transactionDate = parseDateBR(item.date);
+
+      console.log(`📄 ${index + 1} ${item.description}`);
+      console.log('Data extrato:', transactionDate.toISOString());
+
+      if (transactionDate < cycleStart || transactionDate > cycleEnd) {
+        console.warn('⛔ Fora do ciclo');
+        return;
+      }
+
+      transactions.push({
         id: crypto.randomUUID(),
         description: item.description,
         amount: item.amount,
-        date: newDate.toISOString(),
-        type: item.type === 'INCOME' ? TransactionType.INCOME : TransactionType.CARD_EXPENSE,
+        date: transactionDate.toISOString(),
+        type:
+          item.type === 'INCOME'
+            ? TransactionType.INCOME
+            : TransactionType.CARD_EXPENSE,
         category: item.category,
         status: TransactionStatus.COMPLETED,
         cardId: selectedCardId
-      };
+      });
+
+      console.log('✅ Importada');
     });
-    
-    console.log("🚀 TRANSAÇÕES PRONTAS PARA IMPORTAR:", transactions);
-    console.log(`🚀 Todas as ${transactions.length} transações forçadas para: ${selectedMonth + 1}/${selectedYear}`);
-    console.log("🚀 Chamando onImport...");
-    
+
+    if (!transactions.length) {
+      setError('Nenhuma transação pertence a esta fatura.');
+      return;
+    }
+
     onImport(transactions);
-    
-    console.log("🚀 onImport chamado com sucesso!");
-    console.log("🚀 Fechando modal...");
-    
     handleClose();
   };
 
   const handleClose = () => {
     setText('');
-    setStep('INPUT');
     setParsedData([]);
+    setStep('INPUT');
     setError('');
     setNeedsApiKey(false);
     onClose();
   };
 
+  /* =========================
+     RENDER
+  ========================= */
+
   return (
     <Modal isOpen={isOpen} onClose={handleClose} title="Importar Extrato com IA" maxWidth="max-w-2xl">
       {step === 'INPUT' ? (
         <div className="space-y-4">
-          <div className="p-4 bg-indigo-50 border border-indigo-100 rounded-xl flex items-start gap-3">
-             <Sparkles className="text-indigo-600 shrink-0 mt-1" size={20} />
-             <div className="text-sm text-indigo-800">
-                <p className="font-bold">Como funciona?</p>
-                <p>Copie o texto da fatura (PDF ou App do banco) e cole abaixo. A Inteligência Artificial identificará automaticamente entradas (créditos) e saídas (débitos), categorizando cada item.</p>
-             </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1">Selecione o Cartão</label>
-            <select 
-              value={selectedCardId}
-              onChange={(e) => setSelectedCardId(e.target.value)}
-              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-            >
-              {cards.length === 0 && <option value="">Nenhum cartão cadastrado</option>}
-              {cards.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-slate-500 mb-1">Mês da Fatura</label>
-              <select 
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(Number(e.target.value))}
-                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-              >
-                <option value={0}>Janeiro</option>
-                <option value={1}>Fevereiro</option>
-                <option value={2}>Março</option>
-                <option value={3}>Abril</option>
-                <option value={4}>Maio</option>
-                <option value={5}>Junho</option>
-                <option value={6}>Julho</option>
-                <option value={7}>Agosto</option>
-                <option value={8}>Setembro</option>
-                <option value={9}>Outubro</option>
-                <option value={10}>Novembro</option>
-                <option value={11}>Dezembro</option>
-              </select>
-            </div>
-            
-            <div>
-              <label className="block text-xs font-semibold text-slate-500 mb-1">Ano</label>
-              <select 
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(Number(e.target.value))}
-                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-              >
-                <option value={2024}>2024</option>
-                <option value={2025}>2025</option>
-                <option value={2026}>2026</option>
-                <option value={2027}>2027</option>
-              </select>
-            </div>
-          </div>
-
-          <div>
-             <label className="block text-xs font-semibold text-slate-500 mb-1">Texto da Fatura / Extrato</label>
-             <textarea 
-               value={text}
-               onChange={(e) => setText(e.target.value)}
-               className="w-full h-48 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-xs font-mono"
-               placeholder="Ex: 25/02 UBER *VIAGEM R$ 15,90..."
-             />
-          </div>
+          <textarea
+            value={text}
+            onChange={e => setText(e.target.value)}
+            className="w-full h-48 p-3 border rounded-xl font-mono text-xs"
+            placeholder="Cole aqui o texto do extrato"
+          />
 
           {error && (
-            <div className="flex flex-col gap-3 bg-rose-50 p-4 rounded-lg border border-rose-100">
-              <div className="text-rose-600 text-sm flex items-center gap-2 font-medium">
-                <AlertCircle size={16} /> {error}
-              </div>
-              
-              {needsApiKey && (
-                <button 
-                  onClick={handleSelectApiKey}
-                  className="bg-rose-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md hover:bg-rose-700 transition-colors flex items-center justify-center gap-2 w-full"
-                >
-                  <Key size={16} /> Conectar Conta Google (Grátis)
-                </button>
-              )}
+            <div className="text-red-600 text-sm flex items-center gap-2">
+              <AlertCircle size={16} /> {error}
             </div>
           )}
 
-          {!needsApiKey && (
-            <button 
-              onClick={handleProcess}
-              disabled={loading || !text.trim() || cards.length === 0}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          {needsApiKey ? (
+            <button
+              onClick={handleSelectApiKey}
+              className="w-full bg-red-600 text-white py-3 rounded-xl font-bold"
             >
-              {loading ? <Loader2 className="animate-spin" /> : <Sparkles size={18} />}
-              Processar Fatura
+              <Key size={16} /> Conectar Google
+            </button>
+          ) : (
+            <button
+              onClick={handleProcess}
+              disabled={loading}
+              className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold"
+            >
+              {loading ? <Loader2 className="animate-spin" /> : <Sparkles />}
+              Processar
             </button>
           )}
         </div>
       ) : (
         <div className="space-y-4">
-           <div className="flex items-center justify-between">
-              <h3 className="font-bold text-slate-700">Revisão ({parsedData.length} itens)</h3>
-              <button onClick={() => setStep('INPUT')} className="text-xs text-slate-500 hover:text-indigo-600">Voltar</button>
-           </div>
+          <div className="max-h-64 overflow-y-auto divide-y">
+            {parsedData.map((t, i) => (
+              <div key={i} className="p-3 flex justify-between text-sm">
+                <span>{t.description}</span>
+                <span>{formatCurrency(t.amount)}</span>
+              </div>
+            ))}
+          </div>
 
-           <div className="max-h-64 overflow-y-auto border border-slate-100 rounded-xl divide-y divide-slate-100">
-              {parsedData.map((t, idx) => (
-                <div key={idx} className="p-3 hover:bg-slate-50 flex justify-between items-center text-sm border-l-4 border-transparent hover:border-indigo-200">
-                   <div className="flex items-center gap-3">
-                      <div className={`p-1.5 rounded ${t.type === 'INCOME' ? 'bg-emerald-100 text-emerald-600' : 'bg-indigo-100 text-indigo-600'}`}>
-                         {t.type === 'INCOME' ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
-                      </div>
-                      <div>
-                          <p className="font-bold text-slate-700">{t.description}</p>
-                          <div className="flex gap-2 text-xs text-slate-500">
-                            <span>{t.date}</span>
-                            <span className="bg-slate-100 px-1.5 rounded">{t.category}</span>
-                          </div>
-                      </div>
-                   </div>
-                   <span className={`font-bold ${t.type === 'INCOME' ? 'text-emerald-600' : 'text-slate-800'}`}>
-                     {t.type === 'INCOME' ? '+ ' : ''}{formatCurrency(t.amount)}
-                   </span>
-                </div>
-              ))}
-           </div>
-
-           <div className="flex gap-3 pt-2">
-             <button 
-               onClick={handleClose}
-               className="flex-1 py-3 border border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-50"
-             >
-               Cancelar
-             </button>
-             <button 
-               onClick={handleConfirm}
-               className="flex-1 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 shadow-lg shadow-emerald-200 flex items-center justify-center gap-2"
-             >
-               <CheckCircle size={18} /> Confirmar Importação
-             </button>
-           </div>
+          <button
+            onClick={handleConfirm}
+            className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold"
+          >
+            <CheckCircle size={18} /> Confirmar Importação
+          </button>
         </div>
       )}
     </Modal>
