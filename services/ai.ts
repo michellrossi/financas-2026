@@ -13,6 +13,7 @@ export const AIService = {
   // Used for both Bank Statements and Credit Card Statements
   parseStatement: async (text: string): Promise<AIParsedTransaction[]> => {
     console.log("Iniciando processamento de IA...");
+    console.log("🔥🔥🔥 CÓDIGO NOVO CARREGADO 🔥🔥🔥");
     
     // DEBUG: Verificar TODAS as variáveis de ambiente
     console.log("=== DEBUG VARIÁVEIS DE AMBIENTE ===");
