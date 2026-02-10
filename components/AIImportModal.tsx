@@ -98,15 +98,19 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({ isOpen, onClose, c
     console.log("🔵 selectedCardId:", selectedCardId);
     console.log("🔵 Mês/Ano selecionado:", selectedMonth + 1, "/", selectedYear);
     
-    const transactions: Transaction[] = parsedData.map(item => {
+    const transactions: Transaction[] = parsedData.map((item, index) => {
       // Pega o dia da data original parseada pela IA
       const originalDate = new Date(item.date);
-      const day = originalDate.getDate();
+      const originalDay = originalDate.getDate();
       
-      // Cria nova data com o mês/ano selecionado pelo usuário, mantendo o dia
-      const newDate = new Date(selectedYear, selectedMonth, day);
+      // SEMPRE usa o mês/ano selecionado, mantendo apenas o DIA original
+      // Se o dia for inválido para o mês (ex: 31 em fevereiro), ajusta para o último dia do mês
+      const lastDayOfMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+      const validDay = Math.min(originalDay, lastDayOfMonth);
       
-      console.log(`📅 Ajustando data: ${item.date} → ${newDate.toISOString().split('T')[0]}`);
+      const newDate = new Date(selectedYear, selectedMonth, validDay);
+      
+      console.log(`📅 Transação ${index + 1}: ${item.description} - ${item.date} → ${newDate.toISOString().split('T')[0]}`);
       
       return {
         id: crypto.randomUUID(),
@@ -121,6 +125,7 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({ isOpen, onClose, c
     });
     
     console.log("🚀 TRANSAÇÕES PRONTAS PARA IMPORTAR:", transactions);
+    console.log("🚀 Todas as transações em:", `${selectedMonth + 1}/${selectedYear}`);
     console.log("🚀 Quantidade de transações:", transactions.length);
     console.log("🚀 Chamando onImport...");
     
