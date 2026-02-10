@@ -91,6 +91,10 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({ isOpen, onClose, c
   };
 
   const handleConfirm = () => {
+    console.log("🔵 handleConfirm chamado!");
+    console.log("🔵 parsedData:", parsedData);
+    console.log("🔵 selectedCardId:", selectedCardId);
+    
     const transactions: Transaction[] = parsedData.map(item => ({
       id: crypto.randomUUID(),
       description: item.description,
@@ -105,7 +109,15 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({ isOpen, onClose, c
       cardId: selectedCardId
     }));
     
+    console.log("🚀 TRANSAÇÕES PRONTAS PARA IMPORTAR:", transactions);
+    console.log("🚀 Quantidade de transações:", transactions.length);
+    console.log("🚀 Chamando onImport...");
+    
     onImport(transactions);
+    
+    console.log("🚀 onImport chamado com sucesso!");
+    console.log("🚀 Fechando modal...");
+    
     handleClose();
   };
 
