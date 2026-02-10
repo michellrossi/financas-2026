@@ -157,9 +157,8 @@ export const StorageService = {
 
   addTransaction: async (userId: string, t: Transaction) => {
     const { id, ...data } = t; 
-    const ref = doc(db, "transactions", id);
-    const payload = cleanPayload(data);
-    await updateDoc(ref, payload);
+    const payload = cleanPayload({ ...data, userId });
+    await addDoc(collection(db, "transactions"), payload);
   },
 
   updateTransaction: async (userId: string, t: Transaction) => {

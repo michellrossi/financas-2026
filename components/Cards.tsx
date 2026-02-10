@@ -2,7 +2,7 @@ import React from 'react';
 import { CreditCard, Transaction, TransactionType } from '../types';
 import { formatCurrency, getInvoiceMonth } from '../services/storage';
 import { isSameMonth } from 'date-fns';
-import { Plus, Edit2, Trash2, Sparkles } from 'lucide-react';
+import { Plus, Edit2, Trash2 } from 'lucide-react';
 
 interface CardsProps {
   cards: CreditCard[];
@@ -14,27 +14,16 @@ interface CardsProps {
   onEditCard: (card: CreditCard) => void;
   onDeleteCard: (id: string) => void;
   onAddNewCard: () => void;
-  onAIImport: () => void;
 }
 
 export const CardsView: React.FC<CardsProps> = ({ 
   cards, transactions, filterMonth, filterYear, 
-  onCardClick, onAddTransaction, onEditCard, onDeleteCard, onAddNewCard, onAIImport
+  onCardClick, onAddTransaction, onEditCard, onDeleteCard, onAddNewCard
 }) => {
   const targetDate = new Date(filterYear, filterMonth, 1);
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header Action */}
-      <div className="flex justify-end">
-        <button 
-          onClick={onAIImport}
-          className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all"
-        >
-           <Sparkles size={16} /> Importar Fatura com IA
-        </button>
-      </div>
-
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {cards.map(card => {
           const invoiceTotal = transactions

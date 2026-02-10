@@ -11,7 +11,6 @@ import { User, Transaction, ViewState, FilterState, CreditCard, TransactionType,
 import { Plus, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { format, isSameMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { AIImportModal } from './components/AIImportModal';
 
 function App() {
   // --- Global State ---
@@ -35,9 +34,6 @@ function App() {
   const [isListModalOpen, setIsListModalOpen] = useState(false);
   const [listModalTitle, setListModalTitle] = useState('');
   const [listModalTransactions, setListModalTransactions] = useState<Transaction[]>([]);
-
-  // UX State - AI Modal
-  const [isAIModalOpen, setIsAIModalOpen] = useState(false);
 
   const [filter, setFilter] = useState<FilterState>({
     month: new Date().getMonth(),
@@ -70,25 +66,18 @@ function App() {
   }, []);
 
   const fetchData = async (userId: string) => {
-    console.log("📥 fetchData INICIADO - userId:", userId);
     setLoading(true);
     try {
-      console.log("📥 Buscando transações e cartões do Firebase...");
       const [txs, cds] = await Promise.all([
         StorageService.getTransactions(userId),
         StorageService.getCards(userId)
       ]);
-      console.log("📥 Transações recebidas do Firebase:", txs.length, "itens");
-      console.log("📥 Cartões recebidos do Firebase:", cds.length, "itens");
-      console.log("📥 Primeiras 3 transações:", txs.slice(0, 3));
       setTransactions(txs);
       setCards(cds);
-      console.log("✅ Estado atualizado com sucesso!");
     } catch (e) {
-      console.error("❌ ERRO ao buscar dados:", e);
+      console.error(e);
     } finally {
       setLoading(false);
-      console.log("📥 fetchData CONCLUÍDO!");
     }
   };
 
@@ -128,43 +117,19 @@ function App() {
 
   // --- Transaction Handlers ---
   const handleTransactionSubmit = async (t: Transaction, installments: number, amountType: 'total' | 'installment') => {
-  if (!user) return;
-  
-  // Verifique se a transação REALMENTE já existe no banco (pela presença de um ID vindo do Firestore)
-  // Se for um UUID gerado manualmente no Form, tratamos como nova
-  const isEditing = editingTransaction && transactions.some(tx => tx.id === editingTransaction.id);
-
-  if (isEditing) {
-    await StorageService.updateTransaction(user.id, t);
-  } else {
-    const allT = generateInstallments(t, installments, amountType);
-    for (const tx of allT) {
-      // Removemos o ID temporário para que o Firebase gere um ID autêntico via addDoc
-      const { id, ...dataWithoutId } = tx; 
-      await StorageService.addTransaction(user.id, dataWithoutId as Transaction);
+    if (!user) return;
+    
+    if (editingTransaction) {
+      await StorageService.updateTransaction(user.id, t);
+    } else {
+      const allT = generateInstallments(t, installments, amountType);
+      // Sequentially add to Firestore
+      for (const tx of allT) {
+        await StorageService.addTransaction(user.id, tx);
+      }
     }
-  }
-  fetchData(user.id);
-};
-
-  const handleBatchTransactions = async (newTransactions: Transaction[]) => {
-  if (!user) return;
-  setLoading(true);
-  try {
-    for (const t of newTransactions) {
-      // Remove o ID gerado pela IA para o Firebase criar o seu próprio
-      const { id, ...data } = t;
-      await StorageService.addTransaction(user.id, data as Transaction);
-    }
-    await fetchData(user.id);
-    setIsAIModalOpen(false); // Fecha o modal após sucesso
-  } catch (e) {
-    console.error("Erro na importação:", e);
-    alert("Erro ao importar transações. Verifique o console.");
-  } finally {
-    setLoading(false); // Garante que o estado de loading saia, destravando a UI
-  }
-};
+    fetchData(user.id);
+  };
 
   const handleDelete = async (id: string) => {
     if (!user) return;
@@ -281,12 +246,10 @@ function App() {
 
   // Sort logic for display
   const getFilteredTransactionsForView = () => {
-    // ALTERAÇÃO AQUI: Se for INCOME, traz INCOME. Se for EXPENSE (Saídas), traz apenas EXPENSE (exclui CARD_EXPENSE)
-    if (currentView === 'INCOMES') {
-      return transactions.filter(t => t.type === TransactionType.INCOME);
-    }
-    // Na visão de Saídas, não mostramos transações de cartão
-    return transactions.filter(t => t.type === TransactionType.EXPENSE);
+    const baseList = currentView === 'INCOMES' 
+      ? transactions.filter(t => t.type === TransactionType.INCOME)
+      : transactions.filter(t => t.type !== TransactionType.INCOME);
+    return baseList;
   };
 
   return (
@@ -391,7 +354,6 @@ function App() {
           onEditCard={(c) => { setEditingCard(c); setIsCardFormOpen(true); }}
           onDeleteCard={handleDeleteCard}
           onAddNewCard={() => { setEditingCard(null); setIsCardFormOpen(true); }}
-          onAIImport={() => setIsAIModalOpen(true)}
         />
       )}
 
@@ -416,13 +378,6 @@ function App() {
         onClose={() => setIsListModalOpen(false)}
         title={listModalTitle}
         transactions={listModalTransactions}
-      />
-
-      <AIImportModal 
-        isOpen={isAIModalOpen}
-        onClose={() => setIsAIModalOpen(false)}
-        cards={cards}
-        onImport={handleBatchTransactions}
       />
 
     </Layout>

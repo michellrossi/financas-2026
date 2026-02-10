@@ -13,48 +13,30 @@ export const AIService = {
   // Used for both Bank Statements and Credit Card Statements
   parseStatement: async (text: string): Promise<AIParsedTransaction[]> => {
     console.log("Iniciando processamento de IA...");
-    console.log("🔥🔥🔥 CÓDIGO NOVO CARREGADO 🔥🔥🔥");
-    
-    // DEBUG: Verificar TODAS as variáveis de ambiente
-    console.log("=== DEBUG VARIÁVEIS DE AMBIENTE ===");
-    console.log("import.meta.env completo:", import.meta.env);
-    console.log("VITE_API_KEY existe?", import.meta.env.VITE_API_KEY ? "SIM" : "NÃO");
     
     // 1. Tentar obter a chave de várias fontes possíveis
     let apiKey = '';
     
-    // Vite (import.meta.env)
-    if (import.meta.env.VITE_API_KEY) {
-      apiKey = import.meta.env.VITE_API_KEY;
-      console.log("✓ API Key encontrada via import.meta.env.VITE_API_KEY");
+    // Tentativa 1: process.env (Bundlers/Node)
+    try {
+      // @ts-ignore
+      if (typeof process !== 'undefined' && process.env?.API_KEY) {
+        // @ts-ignore
+        apiKey = process.env.API_KEY;
+      }
+    } catch (e) {}
+
+    // Tentativa 2: window.process (Shims de navegador)
+    if (!apiKey && typeof window !== 'undefined') {
+      // @ts-ignore
+      const winProcess = window.process;
+      if (winProcess?.env?.API_KEY) {
+        apiKey = winProcess.env.API_KEY;
+      }
     }
-    
-    // Create React App (process.env)
-    if (!apiKey && typeof process !== 'undefined' && process.env?.REACT_APP_API_KEY) {
-      apiKey = process.env.REACT_APP_API_KEY;
-      console.log("✓ API Key encontrada via process.env.REACT_APP_API_KEY");
-    }
-    
-    // Fallback genérico
-    if (!apiKey && typeof process !== 'undefined' && process.env?.API_KEY) {
-      apiKey = process.env.API_KEY;
-      console.log("✓ API Key encontrada via process.env.API_KEY");
-    }
-    
-    // LOGS DE VERIFICAÇÃO
-    console.log("=== RESULTADO ===");
-    console.log("API Key carregada:", apiKey ? "✓ SIM" : "✗ NÃO");
-    if (apiKey) {
-      console.log("Primeiros 15 caracteres:", apiKey.substring(0, 15) + "...");
-      console.log("Tamanho da chave:", apiKey.length, "caracteres");
-    }
-    
+
     if (!apiKey) {
-      console.error("❌ API Key não encontrada.");
-      console.error("Certifique-se de:");
-      console.error("1. Arquivo .env.local existe na raiz do projeto");
-      console.error("2. Contém: VITE_API_KEY=sua_chave_aqui");
-      console.error("3. Servidor foi reiniciado após criar o .env.local");
+      console.error("API Key não encontrada.");
       throw new Error("API_KEY_MISSING");
     }
 
