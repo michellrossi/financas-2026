@@ -28,14 +28,14 @@ function parseDateBR(dateStr: string): Date | null {
   const clean = dateStr.trim();
   let day, month, year;
 
-  // Tenta formato YYYY-MM-DD (que a IA está enviando)
+  // Tenta formato YYYY-MM-DD (padrão enviado pela IA)
   const matchISO = clean.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (matchISO) {
     year = Number(matchISO[1]);
     month = Number(matchISO[2]);
     day = Number(matchISO[3]);
   } else {
-    // Tenta formato DD/MM/YYYY (fallback brasileiro)
+    // Tenta formato DD/MM/YYYY (fallback)
     const matchBR = clean.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
     if (matchBR) {
       day = Number(matchBR[1]);
@@ -48,20 +48,17 @@ function parseDateBR(dateStr: string): Date | null {
 
   // Cria a data ao meio-dia para evitar problemas de fuso horário
   const date = new Date(year, month - 1, day, 12, 0, 0);
-
-  if (isNaN(date.getTime())) return null;
-
-  return date;
+  return isNaN(date.getTime()) ? null : date;
 }
 
 function getInvoiceCycle(invoiceMonth: number, invoiceYear: number, closingDay: number) {
   // Início do ciclo: Dia de fechamento do mês anterior
-  constQX = new Date(invoiceYear, invoiceMonth - 1, closingDay, 0, 0, 0);
+  const cycleStart = new Date(invoiceYear, invoiceMonth - 1, closingDay, 0, 0, 0);
   
   // Fim do ciclo: Um dia antes do fechamento do mês atual
   const cycleEnd = new Date(invoiceYear, invoiceMonth, closingDay - 1, 23, 59, 59);
 
-  return { cycleStart: constQX, cycleEnd };
+  return { cycleStart, cycleEnd };
 }
 
 /* =========================
@@ -91,30 +88,21 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
   const [error, setError] = useState('');
   const [needsApiKey, setNeedsApiKey] = useState(false);
 
-  /* =========================
-     SELEÇÃO AUTOMÁTICA DE CARTÃO
-  ========================= */
-
+  // Seleção automática do primeiro cartão disponível
   useEffect(() => {
-    if (isOpen && cards.length > 0) {
-      const exists = cards.find(c => c.id === selectedCardId);
-      if (!exists) {
-        setSelectedCardId(cards[0].id);
-      }
+    if (isOpen && cards.length > 0 && !selectedCardId) {
+      setSelectedCardId(cards[0].id);
     }
   }, [isOpen, cards, selectedCardId]);
-
-  /* =========================
-     IA
-  ========================= */
 
   const handleSelectApiKey = async () => {
     try {
       // @ts-ignore
-      await window.aistudio.openSelectKey();
-      setNeedsApiKey(false);
-      setError('');
-      if (text) handleProcess();
+      if (window.aistudio) {
+        await window.aistudio.openSelectKey();
+        setNeedsApiKey(false);
+        setError('');
+      }
     } catch {
       setError('Falha ao conectar com o Google AI Studio.');
     }
@@ -137,86 +125,59 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
 
     try {
       const results = await AIService.parseStatement(text);
-
       if (!results.length) {
         setError('Nenhuma transação identificada.');
         return;
       }
-
       setParsedData(results);
       setStep('PREVIEW');
     } catch (e: any) {
       if (e.message === 'API_KEY_MISSING') {
         setNeedsApiKey(true);
-        setError('Conecte sua conta Google para usar a IA.');
+        setError('Configuração de API necessária.');
       } else {
-        setError('Erro ao processar extrato.');
+        setError('Erro ao processar extrato com IA.');
       }
     } finally {
       setLoading(false);
     }
   };
 
-  /* =========================
-     CONFIRMAÇÃO COM CICLO
-  ========================= */
-
   const handleConfirm = () => {
-  const card = cards.find(c => c.id === selectedCardId);
-  if (!card) {
-    setError('Cartão inválido.');
-    return;
-  }
+    const selectedCard = cards.find(c => c.id === selectedCardId);
+    if (!selectedCard) return;
 
-  const closingDay = card.closingDay ?? 1;
-  // Apenas para validação de ciclo (se a compra entra ou nao nesta fatura)
-  const { cycleStart, cycleEnd } = getInvoiceCycle(
-    selectedMonth,
-    selectedYear,
-    closingDay
-  );
+    const { cycleStart } = getInvoiceCycle(selectedMonth, selectedYear, selectedCard.closingDay);
 
-  const transactions: Transaction[] = [];
+    const transactions: Transaction[] = parsedData.map(item => {
+      const parsedDate = parseDateBR(item.date);
+      let finalDateStr = new Date().toISOString();
 
-  // CORREÇÃO: Calcular quantos dias tem o mês selecionado para evitar overflow de data
-  // Ex: Se transação é dia 30, mas mês selecionado é Fev (28 dias), força dia 28.
-  const maxDayOfSelectedMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+      if (parsedDate) {
+        finalDateStr = parsedDate.toISOString();
+      } else if (item.date.length <= 2) {
+        // Fallback: se a IA mandou só o dia, usa o mês/ano selecionado no Modal
+        const day = Number(item.date);
+        const adjustedDate = new Date(cycleStart);
+        adjustedDate.setDate(day);
+        finalDateStr = adjustedDate.toISOString();
+      }
 
-  parsedData.forEach((item) => {
-    const transactionDate = parseDateBR(item.date);
-    if (!transactionDate) return;
-
-    // 1. Validar se a data original da compra cai dentro do ciclo desta fatura
-    if (transactionDate < cycleStart || transactionDate > cycleEnd) {
-      return;
-    }
-
-    // 2. Ajustar o dia para caber no mês selecionado (para não pular para o próximo mês)
-    const dayToUse = Math.min(transactionDate.getDate(), maxDayOfSelectedMonth);
-
-    // 3. Criar a data final forçando o Mês e Ano selecionados no Modal
-    const finalDate = new Date(selectedYear, selectedMonth, dayToUse, 12, 0, 0);
-
-    transactions.push({
-      id: crypto.randomUUID(),
-      description: item.description,
-      amount: item.amount,
-      date: finalDate.toISOString(),
-      type: item.type === 'INCOME' ? TransactionType.INCOME : TransactionType.CARD_EXPENSE,
-      category: item.category,
-      status: TransactionStatus.COMPLETED,
-      cardId: selectedCardId
+      return {
+        id: crypto.randomUUID(),
+        description: item.description,
+        amount: item.amount,
+        date: finalDateStr,
+        type: item.type === 'INCOME' ? TransactionType.INCOME : TransactionType.CARD_EXPENSE,
+        category: item.category,
+        status: TransactionStatus.COMPLETED,
+        cardId: selectedCardId
+      };
     });
-  });
-
-  if (!transactions.length) {
-    setError('Nenhuma transação pertence ao ciclo desta fatura.');
-    return;
-  }
-
-  onImport(transactions);
-  handleClose();
-};
+    
+    onImport(transactions);
+    handleClose();
+  };
 
   const handleClose = () => {
     setText('');
@@ -227,74 +188,42 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
     onClose();
   };
 
-  /* =========================
-     RENDER
-  ========================= */
-
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={handleClose}
-      title="Importar Extrato com IA"
-      maxWidth="max-w-2xl"
-    >
+    <Modal isOpen={isOpen} onClose={handleClose} title="Importar Extrato com IA" maxWidth="max-w-2xl">
       {step === 'INPUT' ? (
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1">
-              Cartão de crédito
-            </label>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">Cartão de destino</label>
             <select
               value={selectedCardId}
               onChange={e => setSelectedCardId(e.target.value)}
-              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl"
+              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500"
             >
-              {cards.map(card => (
-                <option key={card.id} value={card.id}>
-                  {card.name}
-                </option>
-              ))}
+              {cards.map(card => <option key={card.id} value={card.id}>{card.name}</option>)}
             </select>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-500 mb-1">
-                Mês da fatura
-              </label>
+              <label className="block text-xs font-semibold text-slate-500 mb-1">Mês da Fatura</label>
               <select
                 value={selectedMonth}
                 onChange={e => setSelectedMonth(Number(e.target.value))}
                 className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl"
               >
-                <option value={0}>Janeiro</option>
-                <option value={1}>Fevereiro</option>
-                <option value={2}>Março</option>
-                <option value={3}>Abril</option>
-                <option value={4}>Maio</option>
-                <option value={5}>Junho</option>
-                <option value={6}>Julho</option>
-                <option value={7}>Agosto</option>
-                <option value={8}>Setembro</option>
-                <option value={9}>Outubro</option>
-                <option value={10}>Novembro</option>
-                <option value={11}>Dezembro</option>
+                {['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'].map((m, i) => (
+                  <option key={m} value={i}>{m}</option>
+                ))}
               </select>
             </div>
-
             <div>
-              <label className="block text-xs font-semibold text-slate-500 mb-1">
-                Ano
-              </label>
+              <label className="block text-xs font-semibold text-slate-500 mb-1">Ano</label>
               <select
                 value={selectedYear}
                 onChange={e => setSelectedYear(Number(e.target.value))}
                 className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl"
               >
-                <option value={2024}>2024</option>
-                <option value={2025}>2025</option>
-                <option value={2026}>2026</option>
-                <option value={2027}>2027</option>
+                {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
               </select>
             </div>
           </div>
@@ -302,57 +231,48 @@ export const AIImportModal: React.FC<AIImportModalProps> = ({
           <textarea
             value={text}
             onChange={e => setText(e.target.value)}
-            className="w-full h-48 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono"
-            placeholder="Cole aqui o texto do extrato"
+            className="w-full h-48 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:ring-2 focus:ring-indigo-500 outline-none"
+            placeholder="Cole o texto da sua fatura aqui..."
           />
 
-          {error && (
-            <div className="flex items-center gap-2 text-red-600 text-sm">
-              <AlertCircle size={16} /> {error}
-            </div>
-          )}
+          {error && <div className="text-red-500 text-sm flex items-center gap-2"><AlertCircle size={16}/> {error}</div>}
 
           {needsApiKey ? (
-            <button
-              onClick={handleSelectApiKey}
-              className="w-full bg-red-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2"
-            >
-              <Key size={16} /> Conectar Google
+            <button onClick={handleSelectApiKey} className="w-full bg-red-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2">
+              <Key size={18} /> Configurar Chave de API
             </button>
           ) : (
             <button
               onClick={handleProcess}
-              disabled={loading}
-              className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2"
+              disabled={loading || !text.trim()}
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 disabled:opacity-50"
             >
-              {loading ? <Loader2 className="animate-spin" /> : <Sparkles />}
-              Processar extrato
+              {loading ? <Loader2 className="animate-spin" /> : <Sparkles size={18} />}
+              Processar com IA
             </button>
           )}
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="max-h-64 overflow-y-auto divide-y">
+          <div className="max-h-80 overflow-y-auto border rounded-xl divide-y">
             {parsedData.map((t, i) => (
-              <div key={i} className="p-3 flex justify-between text-sm">
+              <div key={i} className="p-3 flex justify-between items-center hover:bg-slate-50">
                 <div>
-                  <p className="font-bold">{t.description}</p>
-                  <p className="text-xs text-slate-500">{t.date}</p>
+                  <p className="font-bold text-slate-700">{t.description}</p>
+                  <p className="text-xs text-slate-500">{t.date} • {t.category}</p>
                 </div>
-                <span className="font-bold">
-                  {t.type === 'INCOME' ? '+ ' : ''}
-                  {formatCurrency(t.amount)}
+                <span className={`font-bold ${t.type === 'INCOME' ? 'text-emerald-600' : 'text-slate-900'}`}>
+                  {t.type === 'INCOME' ? '+ ' : ''}{formatCurrency(t.amount)}
                 </span>
               </div>
             ))}
           </div>
-
-          <button
-            onClick={handleConfirm}
-            className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2"
-          >
-            <CheckCircle size={18} /> Confirmar Importação
-          </button>
+          <div className="flex gap-3">
+            <button onClick={() => setStep('INPUT')} className="flex-1 py-3 border border-slate-200 rounded-xl font-bold text-slate-600">Voltar</button>
+            <button onClick={handleConfirm} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2">
+              <CheckCircle size={18} /> Confirmar Importação
+            </button>
+          </div>
         </div>
       )}
     </Modal>
