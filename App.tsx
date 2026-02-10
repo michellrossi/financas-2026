@@ -70,18 +70,25 @@ function App() {
   }, []);
 
   const fetchData = async (userId: string) => {
+    console.log("📥 fetchData INICIADO - userId:", userId);
     setLoading(true);
     try {
+      console.log("📥 Buscando transações e cartões do Firebase...");
       const [txs, cds] = await Promise.all([
         StorageService.getTransactions(userId),
         StorageService.getCards(userId)
       ]);
+      console.log("📥 Transações recebidas do Firebase:", txs.length, "itens");
+      console.log("📥 Cartões recebidos do Firebase:", cds.length, "itens");
+      console.log("📥 Primeiras 3 transações:", txs.slice(0, 3));
       setTransactions(txs);
       setCards(cds);
+      console.log("✅ Estado atualizado com sucesso!");
     } catch (e) {
-      console.error(e);
+      console.error("❌ ERRO ao buscar dados:", e);
     } finally {
       setLoading(false);
+      console.log("📥 fetchData CONCLUÍDO!");
     }
   };
 
