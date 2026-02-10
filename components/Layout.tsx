@@ -63,20 +63,13 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto overflow-x-hidden pb-24 md:pb-0">
         <div className="max-w-7xl mx-auto p-4 md:p-8">
-          {/* Header for Mobile only to show Title/User */}
-          <div className="md:hidden flex justify-between items-center mb-6">
-             <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center text-white font-bold">F</div>
-                <h1 className="font-bold text-slate-800 text-lg">Finanças</h1>
-             </div>
-             <button onClick={onLogout} className="p-2 text-slate-400"><LogOut size={20}/></button>
-          </div>
+          {/* Header for Mobile only is now handled in App.tsx to include Actions */}
           {children}
         </div>
       </main>
 
       {/* Mobile Fixed Bottom Navigation */}
-      <div className="md:hidden fixed bottom-0 left-0 w-full bg-white border-t border-slate-200 z-50 pb-safe">
+      <div className="md:hidden fixed bottom-0 left-0 w-full bg-white border-t border-slate-200 z-50 pb-safe shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
          <div className="flex justify-around items-center h-16">
             <NavIcon view="DASHBOARD" icon={LayoutDashboard} tooltip="Visão" mobile />
             <NavIcon view="INCOMES" icon={CircleArrowUp} tooltip="Entradas" mobile />

@@ -8,7 +8,7 @@ import { TransactionListModal } from './components/TransactionListModal';
 import { CardForm } from './components/CardForm';
 import { StorageService, generateInstallments, getInvoiceMonth } from './services/storage';
 import { User, Transaction, ViewState, FilterState, CreditCard, TransactionType, TransactionStatus } from './types';
-import { Plus, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, Loader2, LogOut } from 'lucide-react';
 import { format, isSameMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -389,6 +389,7 @@ function App() {
            <p className="text-slate-500 text-sm font-medium">Bem vindo de volta, {user.name.split(' ')[0]}</p>
         </div>
 
+        {/* Desktop Controls (No New Transaction Button Here anymore, moved to FAB) */}
         <div className="flex items-center gap-3">
            {loading && <Loader2 className="animate-spin text-emerald-500 mr-2" />}
            
@@ -397,98 +398,111 @@ function App() {
               <span className="min-w-[140px] text-center font-bold text-slate-700 capitalize select-none">{currentDateDisplay}</span>
               <button onClick={() => changeMonth(1)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500"><ChevronRight size={20} /></button>
            </div>
-           
-           <button 
-             onClick={() => { setEditingTransaction(null); setIsTxModalOpen(true); }}
-             className="w-12 h-12 flex items-center justify-center bg-emerald-500 text-white rounded-2xl hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-200 hidden md:flex"
-             title="Nova Transação"
-           >
-             <Plus size={24} strokeWidth={3} />
-           </button>
+        </div>
+
+        {/* Mobile Header with Controls */}
+        <div className="md:hidden flex justify-between items-center w-full absolute top-6 left-0 px-4">
+             <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center text-white font-bold">F</div>
+                <h1 className="font-bold text-slate-800 text-lg">Finanças</h1>
+             </div>
+             
+             <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => { setEditingTransaction(null); setIsTxModalOpen(true); }}
+                  className="w-9 h-9 flex items-center justify-center bg-emerald-100 text-emerald-700 rounded-full hover:bg-emerald-200 transition-colors"
+                  title="Nova Transação"
+                >
+                  <Plus size={20} strokeWidth={2.5} />
+                </button>
+                <button onClick={handleLogout} className="p-2 text-slate-400"><LogOut size={20}/></button>
+             </div>
         </div>
       </div>
 
       {/* Content */}
-      {currentView === 'DASHBOARD' && (
-        <Dashboard 
-          transactions={processedTransactions} 
-          allTransactions={transactions} // Pass raw txs for history
-          filter={filter} 
-          cards={cards}
-          onViewDetails={(type) => { 
-             const filteredT = getFilteredTransactionsForView().filter(t => {
-                if (type === 'INCOME') return t.type === TransactionType.INCOME;
-                if (type === 'EXPENSE') return t.type !== TransactionType.INCOME;
-                return true;
-             });
+      <div className="pt-8 md:pt-0"> {/* Add padding top on mobile for custom header */}
+        {currentView === 'DASHBOARD' && (
+          <Dashboard 
+            transactions={processedTransactions} 
+            allTransactions={transactions} // Pass raw txs for history
+            filter={filter} 
+            cards={cards}
+            onViewDetails={(type) => { 
+              const filteredT = getFilteredTransactionsForView().filter(t => {
+                  if (type === 'INCOME') return t.type === TransactionType.INCOME;
+                  if (type === 'EXPENSE') return t.type !== TransactionType.INCOME;
+                  return true;
+              });
 
-             if (type === 'INCOME') setListModalTitle('Receitas Realizadas');
-             else if (type === 'EXPENSE') setListModalTitle('Despesas e Faturas');
-             else setListModalTitle('Extrato do Mês');
+              if (type === 'INCOME') setListModalTitle('Receitas Realizadas');
+              else if (type === 'EXPENSE') setListModalTitle('Despesas e Faturas');
+              else setListModalTitle('Extrato do Mês');
 
-             setListModalTransactions(filteredT);
-             setIsListModalOpen(true);
-          }}
-        />
-      )}
-      
-      {(currentView === 'INCOMES' || currentView === 'EXPENSES') && (
-        <Transactions 
-          transactions={getFilteredTransactionsForView()} 
-          filter={filter} 
-          onEdit={(t) => { 
-             if (t.isVirtual) {
-                const card = cards.find(c => c.id === t.cardId);
-                if (card) {
-                   setCurrentView('CARDS');
-                }
-             } else {
-                setEditingTransaction(t); setIsTxModalOpen(true); 
-             }
-          }} 
-          onDelete={handleDelete}
-          onToggleStatus={handleToggleStatus}
-          onSortChange={handleSortChange}
-        />
-      )}
-      
-      {currentView === 'CARDS' && (
-        <CardsView 
-          cards={cards} 
-          transactions={transactions} 
-          filterMonth={filter.month} 
-          filterYear={filter.year} 
-          onCardClick={(cardId) => {
-            const card = cards.find(c => c.id === cardId);
-            if (!card) return;
-            const targetDate = new Date(filter.year, filter.month, 1);
-            const cardTx = transactions.filter(t => 
-               t.cardId === cardId && 
-               isSameMonth(getInvoiceMonth(new Date(t.date), card.closingDay), targetDate)
-            );
-            setListModalTitle(`Fatura: ${card.name}`);
-            setListModalTransactions(cardTx);
-            setIsListModalOpen(true);
-          }}
-          onAddTransaction={(cardId) => {
-            setEditingTransaction({ 
-              id: '', 
-              description: '', amount: 0, date: new Date().toISOString(),
-              type: TransactionType.CARD_EXPENSE, category: 'Outros', status: TransactionStatus.COMPLETED,
-              cardId: cardId
-            });
-            setIsTxModalOpen(true);
-          }}
-          onEditCard={(c) => { setEditingCard(c); setIsCardFormOpen(true); }}
-          onDeleteCard={handleDeleteCard}
-          onAddNewCard={() => { setEditingCard(null); setIsCardFormOpen(true); }}
-        />
-      )}
+              setListModalTransactions(filteredT);
+              setIsListModalOpen(true);
+            }}
+          />
+        )}
+        
+        {(currentView === 'INCOMES' || currentView === 'EXPENSES') && (
+          <Transactions 
+            transactions={getFilteredTransactionsForView()} 
+            filter={filter} 
+            onEdit={(t) => { 
+              if (t.isVirtual) {
+                  const card = cards.find(c => c.id === t.cardId);
+                  if (card) {
+                    setCurrentView('CARDS');
+                  }
+              } else {
+                  setEditingTransaction(t); setIsTxModalOpen(true); 
+              }
+            }} 
+            onDelete={handleDelete}
+            onToggleStatus={handleToggleStatus}
+            onSortChange={handleSortChange}
+          />
+        )}
+        
+        {currentView === 'CARDS' && (
+          <CardsView 
+            cards={cards} 
+            transactions={transactions} 
+            filterMonth={filter.month} 
+            filterYear={filter.year} 
+            onCardClick={(cardId) => {
+              const card = cards.find(c => c.id === cardId);
+              if (!card) return;
+              const targetDate = new Date(filter.year, filter.month, 1);
+              const cardTx = transactions.filter(t => 
+                t.cardId === cardId && 
+                isSameMonth(getInvoiceMonth(new Date(t.date), card.closingDay), targetDate)
+              );
+              setListModalTitle(`Fatura: ${card.name}`);
+              setListModalTransactions(cardTx);
+              setIsListModalOpen(true);
+            }}
+            onAddTransaction={(cardId) => {
+              setEditingTransaction({ 
+                id: '', 
+                description: '', amount: 0, date: new Date().toISOString(),
+                type: TransactionType.CARD_EXPENSE, category: 'Outros', status: TransactionStatus.COMPLETED,
+                cardId: cardId
+              });
+              setIsTxModalOpen(true);
+            }}
+            onEditCard={(c) => { setEditingCard(c); setIsCardFormOpen(true); }}
+            onDeleteCard={handleDeleteCard}
+            onAddNewCard={() => { setEditingCard(null); setIsCardFormOpen(true); }}
+          />
+        )}
+      </div>
 
-      {/* Floating Action Button (FAB) for Mobile/All */}
+      {/* Floating Action Button (FAB) for Web Only */}
       <button
         onClick={() => { setEditingTransaction(null); setIsTxModalOpen(true); }}
-        className="fixed bottom-24 right-6 w-14 h-14 bg-emerald-600 text-white rounded-full shadow-2xl hover:bg-emerald-700 hover:scale-105 transition-all flex items-center justify-center z-40 group md:hidden"
+        className="fixed bottom-6 right-6 w-14 h-14 bg-emerald-600 text-white rounded-full shadow-2xl hover:bg-emerald-700 hover:scale-105 transition-all items-center justify-center z-40 group hidden md:flex"
         title="Nova Transação"
       >
         <Plus size={32} strokeWidth={2.5} />
@@ -515,16 +529,7 @@ function App() {
         onClose={() => setIsListModalOpen(false)}
         title={listModalTitle}
         transactions={listModalTransactions}
-        // Connect Edit/Delete actions for items inside the list (like Card Invoice Items)
-        onEdit={(t) => { 
-            // Fix: Close list modal before opening edit form to avoid overlap
-            setIsListModalOpen(false); 
-            setTimeout(() => {
-                setEditingTransaction(t); 
-                setIsTxModalOpen(true); 
-            }, 100);
-        }}
-        onDelete={handleDelete}
+        // Removed onEdit and onDelete to hide actions in popup as requested
       />
 
     </Layout>
