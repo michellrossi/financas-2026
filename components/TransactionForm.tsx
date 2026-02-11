@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Transaction, TransactionType, TransactionStatus, INCOME_CATEGORIES, EXPENSE_CATEGORIES, CreditCard } from '../types';
 import { DollarSign, Type, Layers } from 'lucide-react';
 import { Modal } from './ui/Modal';
+import { CategoryIcon } from './CategoryIcon';
 
 interface TransactionFormProps {
   isOpen: boolean;
@@ -189,13 +190,18 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ isOpen, onClos
           <div className="flex gap-4">
             <div className="flex-1">
               <label className="block text-xs font-semibold text-slate-500 mb-1">Categoria</label>
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-              >
-                {categories.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
+              <div className="relative">
+                <div className="absolute left-3 top-2.5 text-slate-500 pointer-events-none">
+                  <CategoryIcon category={category} size={18} />
+                </div>
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none appearance-none"
+                >
+                  {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
             </div>
 
             {type === TransactionType.CARD_EXPENSE && (

@@ -4,6 +4,7 @@ import { Transaction, TransactionType, TransactionStatus } from '../types';
 import { formatCurrency } from '../services/storage';
 import { format } from 'date-fns';
 import { ArrowUpRight, ArrowDownRight, CreditCard, Edit2, Trash2, Calendar, DollarSign } from 'lucide-react';
+import { CategoryIcon } from './CategoryIcon';
 
 interface TransactionListModalProps {
   isOpen: boolean;
@@ -89,7 +90,10 @@ export const TransactionListModal: React.FC<TransactionListModalProps> = ({
                     </p>
                     <div className="flex items-center gap-2 text-xs text-slate-400">
                       <span>{format(new Date(t.date), 'dd/MM/yyyy')}</span>
-                      <span className="bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide">{t.category}</span>
+                      <span className="flex items-center gap-1 bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide">
+                        <CategoryIcon category={t.category} size={10} className="text-slate-500" />
+                        {t.category}
+                      </span>
                     </div>
                   </div>
               </div>

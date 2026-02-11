@@ -8,6 +8,7 @@ import {
 } from 'recharts';
 import { format, subMonths, startOfMonth, endOfMonth, isSameMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { CategoryIcon } from './CategoryIcon';
 
 interface DashboardProps {
   transactions: Transaction[]; // These are Aggregated (Standard + Virtual Invoices) for current month summary
@@ -239,7 +240,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ transactions, allTransacti
                {categoryData.map((item, idx) => (
                  <div key={item.name} className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: COLORS[idx % COLORS.length] }}></div>
-                    <span className="text-xs text-slate-500 truncate">{item.name}</span>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                        <CategoryIcon category={item.name} size={12} className="text-slate-400" />
+                        <span className="text-xs text-slate-500 truncate">{item.name}</span>
+                    </div>
                  </div>
                ))}
             </div>

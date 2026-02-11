@@ -4,6 +4,7 @@ import { formatCurrency } from '../services/storage';
 import { format, isBefore, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ArrowUp, ArrowDown, CreditCard, Edit2, Trash2, Calendar, DollarSign, Receipt } from 'lucide-react';
+import { CategoryIcon } from './CategoryIcon';
 
 interface TransactionsProps {
   transactions: Transaction[];
@@ -109,7 +110,10 @@ export const Transactions: React.FC<TransactionsProps> = ({
                     </span>
                     <div className="flex items-center flex-wrap gap-2 text-xs">
                       <span className="text-slate-400 shrink-0">{format(new Date(t.date), 'dd/MM/yyyy')}</span>
-                      <span className="px-2 py-0.5 bg-slate-100 rounded text-slate-500 uppercase font-semibold text-[10px] tracking-wide truncate max-w-[120px]">{t.category}</span>
+                      <span className="flex items-center gap-1 px-2 py-0.5 bg-slate-100 rounded text-slate-500 uppercase font-semibold text-[10px] tracking-wide truncate max-w-[140px]">
+                        <CategoryIcon category={t.category} size={10} className="text-slate-400" />
+                        <span className="truncate">{t.category}</span>
+                      </span>
                       {t.installments && (
                         <span className="text-slate-400 shrink-0">({t.installments.current}/{t.installments.total})</span>
                       )}
