@@ -21,13 +21,10 @@ export const TransactionListModal: React.FC<TransactionListModalProps> = ({
   const [sortBy, setSortBy] = useState<'date' | 'amount'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   
-  // Filter only COMPLETED (Paid/Received) transactions and Sort them
+  // Sort transactions based on user selection
+  // Note: We no longer filter by Status here. The parent component decides what to show.
   const sortedTransactions = useMemo(() => {
-    // 1. Filter
-    const visible = transactions.filter(t => t.status === TransactionStatus.COMPLETED);
-
-    // 2. Sort
-    return visible.sort((a, b) => {
+    return [...transactions].sort((a, b) => {
         const valA = sortBy === 'date' ? new Date(a.date).getTime() : a.amount;
         const valB = sortBy === 'date' ? new Date(b.date).getTime() : b.amount;
 
@@ -69,7 +66,7 @@ export const TransactionListModal: React.FC<TransactionListModalProps> = ({
 
       <div className="space-y-2 pb-4">
         {sortedTransactions.length === 0 ? (
-          <p className="text-center text-slate-400 py-8">Nenhuma transação concluída neste período.</p>
+          <p className="text-center text-slate-400 py-8">Nenhuma transação encontrada.</p>
         ) : (
           sortedTransactions.map(t => (
             <div key={t.id} className="group flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0">

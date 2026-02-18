@@ -465,14 +465,17 @@ function App() {
             cards={cards}
             onViewDetails={(type) => { 
               const filteredT = getFilteredTransactionsForView().filter(t => {
+                  // For Dashboard stats (which show "Realized"), only show COMPLETED items
+                  if (t.status !== TransactionStatus.COMPLETED) return false;
+
                   if (type === 'INCOME') return t.type === TransactionType.INCOME;
                   if (type === 'EXPENSE') return t.type !== TransactionType.INCOME;
                   return true;
               });
 
               if (type === 'INCOME') setListModalTitle('Receitas Realizadas');
-              else if (type === 'EXPENSE') setListModalTitle('Despesas e Faturas');
-              else setListModalTitle('Extrato do Mês');
+              else if (type === 'EXPENSE') setListModalTitle('Despesas e Faturas Pagas');
+              else setListModalTitle('Extrato Realizado');
 
               setListModalTransactions(filteredT);
               setIsListModalOpen(true);
@@ -515,6 +518,7 @@ function App() {
                 isSameMonth(getInvoiceMonth(new Date(t.date), card.closingDay), targetDate)
               );
               setListModalTitle(`Fatura: ${card.name}`);
+              // Show ALL transactions for the invoice (Pending + Completed) so user can see what's coming
               setListModalTransactions(cardTx);
               setIsListModalOpen(true);
             }}
