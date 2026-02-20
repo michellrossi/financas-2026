@@ -1,10 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import { Modal } from './ui/Modal';
-import { Transaction, TransactionType, TransactionStatus } from '../types';
+import { Transaction, TransactionType } from '../types';
 import { formatCurrency } from '../services/storage';
 import { format } from 'date-fns';
-import { ArrowUpRight, ArrowDownRight, CreditCard, Edit2, Trash2, Calendar, DollarSign } from 'lucide-react';
+import { Trash2, Calendar, DollarSign } from 'lucide-react';
 import { CategoryIcon } from './CategoryIcon';
+import { motion, useAnimation, PanInfo } from 'framer-motion';
 
 interface TransactionListModalProps {
   isOpen: boolean;
@@ -15,6 +16,115 @@ interface TransactionListModalProps {
   onDelete?: (id: string) => void;
 }
 
+const TransactionListItem = ({ 
+  t, 
+  onEdit, 
+  onDelete 
+}: { 
+  t: Transaction; 
+  onEdit?: (t: Transaction) => void; 
+  onDelete?: (id: string) => void; 
+}) => {
+  const controls = useAnimation();
+  const [isOpen, setIsOpen] = useState(false);
+
+  const handleDragEnd = (event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+    if (!onDelete) return;
+    
+    if (info.offset.x < -60) {
+      controls.start({ x: -80 });
+      setIsOpen(true);
+    } else {
+      controls.start({ x: 0 });
+      setIsOpen(false);
+    }
+  };
+
+  const handleClick = () => {
+      if (isOpen) {
+          controls.start({ x: 0 });
+          setIsOpen(false);
+      } else if (onEdit) {
+          onEdit(t);
+      }
+  };
+
+  // Determine Icon Colors
+  let iconBg = 'bg-slate-100';
+  let iconColor = 'text-slate-500';
+
+  if (t.type === TransactionType.INCOME) {
+      iconBg = 'bg-emerald-100';
+      iconColor = 'text-emerald-600';
+  } else if (t.type === TransactionType.CARD_EXPENSE) {
+      iconBg = 'bg-indigo-100';
+      iconColor = 'text-indigo-600';
+  } else {
+      iconBg = 'bg-rose-100';
+      iconColor = 'text-rose-600';
+  }
+
+  return (
+    <div className="relative mb-3">
+      {/* Background Actions (Delete) */}
+      {onDelete && (
+        <div className="absolute inset-y-0 right-0 w-20 bg-red-500 rounded-xl flex items-center justify-center z-0">
+            <button 
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(t.id);
+                }} 
+                className="w-full h-full flex items-center justify-center text-white"
+            >
+                <Trash2 size={20} />
+            </button>
+        </div>
+      )}
+
+      {/* Foreground Card */}
+      <motion.div
+        drag={onDelete ? "x" : false}
+        dragConstraints={{ left: -80, right: 0 }}
+        dragElastic={0.1}
+        onDragEnd={handleDragEnd}
+        animate={controls}
+        className="relative bg-white rounded-xl p-3 flex items-center justify-between shadow-sm border border-slate-100 z-10 cursor-pointer active:scale-[0.99] transition-transform"
+        onClick={handleClick}
+        style={{ touchAction: 'pan-y' }}
+      >
+          {/* Left: Icon & Description */}
+          <div className="flex items-center gap-3 flex-1 min-w-0 pointer-events-none">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${iconBg} ${iconColor}`}>
+                <CategoryIcon category={t.category} size={20} />
+              </div>
+              
+              <div className="min-w-0 flex flex-col gap-0.5">
+                <p className="font-bold text-slate-800 text-sm truncate">
+                    {t.description}
+                </p>
+                <div className="flex items-center gap-2 text-xs text-slate-400">
+                  <span>{format(new Date(t.date), 'dd/MM')}</span>
+                  <span className="flex items-center gap-1 bg-slate-50 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide truncate max-w-[100px]">
+                    {t.category}
+                  </span>
+                  {t.installments && (
+                    <span className="shrink-0">({t.installments.current}/{t.installments.total})</span>
+                  )}
+                </div>
+              </div>
+          </div>
+          
+          {/* Right: Amount */}
+          <div className="pl-3 pointer-events-none">
+            <p className={`font-bold text-sm whitespace-nowrap ${t.type === TransactionType.INCOME ? 'text-emerald-600' : 'text-slate-800'}`}>
+              {t.type === TransactionType.INCOME ? '+' : ''} {formatCurrency(t.amount)}
+            </p>
+          </div>
+      </motion.div>
+    </div>
+  );
+};
+
 export const TransactionListModal: React.FC<TransactionListModalProps> = ({ 
   isOpen, onClose, title, transactions, onEdit, onDelete 
 }) => {
@@ -22,7 +132,6 @@ export const TransactionListModal: React.FC<TransactionListModalProps> = ({
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   
   // Sort transactions based on user selection
-  // Note: We no longer filter by Status here. The parent component decides what to show.
   const sortedTransactions = useMemo(() => {
     return [...transactions].sort((a, b) => {
         const valA = sortBy === 'date' ? new Date(a.date).getTime() : a.amount;
@@ -45,10 +154,10 @@ export const TransactionListModal: React.FC<TransactionListModalProps> = ({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={title} maxWidth="max-w-2xl">
+    <Modal isOpen={isOpen} onClose={onClose} title={title} maxWidth="max-w-md">
       {/* Sort Controls */}
       <div className="flex justify-end mb-4 sticky top-0 bg-white pt-2 pb-2 z-10">
-         <div className="flex bg-slate-100 p-1 rounded-xl shadow-sm">
+         <div className="flex bg-slate-50 p-1 rounded-xl shadow-sm border border-slate-100">
            <button 
              onClick={() => handleSortChange('date')}
              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${sortBy === 'date' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
@@ -64,66 +173,22 @@ export const TransactionListModal: React.FC<TransactionListModalProps> = ({
          </div>
       </div>
 
-      <div className="space-y-2 pb-4">
+      <div className="space-y-1 pb-4">
         {sortedTransactions.length === 0 ? (
-          <p className="text-center text-slate-400 py-8">Nenhuma transação encontrada.</p>
+          <div className="text-center py-12">
+             <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3 text-slate-300">
+               <Calendar size={24} />
+             </div>
+             <p className="text-slate-400 text-sm">Nenhuma transação encontrada.</p>
+          </div>
         ) : (
           sortedTransactions.map(t => (
-            <div key={t.id} className="group flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0">
-              {/* Left: Icon & Description */}
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                 <div className={`p-2 rounded-lg shrink-0 ${
-                    t.type === TransactionType.INCOME ? 'bg-emerald-100 text-emerald-600' :
-                    t.type === TransactionType.CARD_EXPENSE ? 'bg-indigo-100 text-indigo-600' :
-                    'bg-rose-100 text-rose-600'
-                  }`}>
-                    {t.type === TransactionType.INCOME ? <ArrowUpRight size={16} /> : 
-                     t.type === TransactionType.CARD_EXPENSE ? <CreditCard size={16} /> : <ArrowDownRight size={16} />}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="font-medium text-slate-800 text-sm flex items-center gap-2 truncate">
-                        {t.description}
-                        {t.installments && <span className="text-[10px] text-slate-400 shrink-0">({t.installments.current}/{t.installments.total})</span>}
-                    </p>
-                    <div className="flex items-center gap-2 text-xs text-slate-400">
-                      <span>{format(new Date(t.date), 'dd/MM/yyyy')}</span>
-                      <span className="flex items-center gap-1 bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide">
-                        <CategoryIcon category={t.category} size={10} className="text-slate-500" />
-                        {t.category}
-                      </span>
-                    </div>
-                  </div>
-              </div>
-              
-              {/* Right: Amount & Actions */}
-              <div className="flex items-center gap-4 pl-4">
-                <p className={`font-bold text-sm whitespace-nowrap ${t.type === TransactionType.INCOME ? 'text-emerald-600' : 'text-slate-800'}`}>
-                  {t.type === TransactionType.INCOME ? '+' : '-'} {formatCurrency(t.amount)}
-                </p>
-                
-                {/* Actions (Only show if handlers provided) */}
-                {(onEdit || onDelete) && (
-                    <div className="flex gap-1">
-                        {onEdit && (
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); onEdit(t); }} 
-                                className="p-1.5 text-slate-300 hover:bg-white hover:text-blue-500 rounded-md transition-all"
-                            >
-                                <Edit2 size={14} />
-                            </button>
-                        )}
-                        {onDelete && (
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); onDelete(t.id); }} 
-                                className="p-1.5 text-slate-300 hover:bg-white hover:text-red-500 rounded-md transition-all"
-                            >
-                                <Trash2 size={14} />
-                            </button>
-                        )}
-                    </div>
-                )}
-              </div>
-            </div>
+            <TransactionListItem 
+                key={t.id} 
+                t={t} 
+                onEdit={onEdit} 
+                onDelete={onDelete} 
+            />
           ))
         )}
       </div>
