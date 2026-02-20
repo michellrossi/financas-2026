@@ -411,47 +411,41 @@ function App() {
     <Layout currentView={currentView} setView={setCurrentView} user={user} onLogout={handleLogout}>
       
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-        <div>
-           <h1 className="text-2xl font-bold text-slate-800 capitalize tracking-tight">{viewTitle}</h1>
-           <p className="text-slate-500 text-sm font-medium">Bem vindo de volta, {user.name.split(' ')[0]}</p>
+      <div className="flex flex-col gap-6 mb-8 pt-4 md:pt-0">
+        {/* Top Row: Title & User (Mobile) / Title (Desktop) */}
+        <div className="flex items-center justify-between">
+            <div>
+               <h1 className="text-2xl font-bold text-slate-800 capitalize tracking-tight">{viewTitle}</h1>
+               <p className="text-slate-500 text-sm font-medium">Bem vindo de volta, {user.name.split(' ')[0]}</p>
+            </div>
+            
+            {/* Mobile Logout */}
+            <div className="md:hidden">
+                <button onClick={handleLogout} className="p-2 text-slate-400 hover:text-red-500 transition-colors"><LogOut size={20}/></button>
+            </div>
         </div>
 
-        {/* Desktop Controls */}
-        <div className="hidden md:flex items-center gap-3">
+        {/* Controls Row */}
+        <div className="flex items-center justify-between md:justify-end gap-3">
            {loading && <Loader2 className="animate-spin text-emerald-500 mr-2" />}
            
-           <div className="flex items-center bg-white rounded-xl border border-slate-200 p-1 shadow-sm">
+           {/* Month Selector */}
+           <div className="flex items-center bg-white rounded-xl border border-slate-200 p-1 shadow-sm w-full md:w-auto justify-between md:justify-start">
               <button onClick={() => changeMonth(-1)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500"><ChevronLeft size={20} /></button>
-              <span className="min-w-[140px] text-center font-bold text-slate-700 capitalize select-none">{currentDateDisplay}</span>
+              <span className="min-w-[120px] md:min-w-[140px] text-center font-bold text-slate-700 capitalize select-none text-sm md:text-base">{currentDateDisplay}</span>
               <button onClick={() => changeMonth(1)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500"><ChevronRight size={20} /></button>
            </div>
-        </div>
 
-        {/* Mobile Header with Controls */}
-        <div className="md:hidden flex justify-between items-center w-full absolute top-6 left-0 px-4">
-             {/* Logo Removed as requested */}
-             
-             {/* Month Selector + Add Button grouped */}
-             <div className="flex items-center gap-2 w-full justify-center relative">
-               <div className="flex items-center bg-white rounded-xl border border-slate-200 p-1 shadow-sm">
-                  <button onClick={() => changeMonth(-1)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500"><ChevronLeft size={20} /></button>
-                  <span className="min-w-[120px] text-center font-bold text-slate-700 capitalize select-none text-sm">{currentDateDisplay}</span>
-                  <button onClick={() => changeMonth(1)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500"><ChevronRight size={20} /></button>
-               </div>
-
+           {/* Mobile Add Button */}
+           <div className="md:hidden shrink-0">
                <button 
                   onClick={handleOpenNewTransaction}
-                  className="w-10 h-10 flex items-center justify-center bg-emerald-100 text-emerald-700 rounded-xl hover:bg-emerald-200 transition-colors"
+                  className="w-10 h-10 flex items-center justify-center bg-emerald-100 text-emerald-700 rounded-xl hover:bg-emerald-200 transition-colors shadow-sm"
                   title="Nova Transação"
                 >
                   <Plus size={20} strokeWidth={2.5} />
                 </button>
-             </div>
-             
-             <div className="absolute right-4">
-                <button onClick={handleLogout} className="p-2 text-slate-400"><LogOut size={20}/></button>
-             </div>
+           </div>
         </div>
       </div>
 
