@@ -458,7 +458,7 @@ function App() {
             filter={filter} 
             cards={cards}
             onViewDetails={(type) => { 
-              const filteredT = getFilteredTransactionsForView().filter(t => {
+              const filteredT = processedTransactions.filter(t => {
                   // For Dashboard stats (which show "Realized"), only show COMPLETED items
                   if (t.status !== TransactionStatus.COMPLETED) return false;
 
