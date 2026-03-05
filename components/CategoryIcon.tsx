@@ -13,49 +13,61 @@ interface CategoryIconProps {
 }
 
 export const CategoryIcon: React.FC<CategoryIconProps> = ({ category, size = 16, className = "" }) => {
-  const getIcon = () => {
+  const getEmoji = () => {
     switch (category) {
       // Despesas
-      case 'Alimentação': return Utensils;
-      case 'Apê': return Home;
-      case 'Assinaturas': return Tv;
-      case 'Besteiras': return Coffee;
-      case 'Carro': return Car;
-      case 'Comemoração': return PartyPopper;
+      case 'Alimentação': return '🍔';
+      case 'Apê':
+      case 'Moradia': return '🏠';
+      case 'Assinaturas': return '📱';
+      case 'Besteiras': return '🍕';
+      case 'Carro':
+      case 'Transporte': return '🚗';
+      case 'Comemoração': return '🥳';
       case 'Educação':
-      case 'Estudo': return GraduationCap;
+      case 'Estudo': return '📚';
       case 'Farmácia':
-      case 'Saúde': return HeartPulse;
-      case 'Ifood': return Pizza;
+      case 'Saúde': return '💊';
+      case 'Ifood': return '🥡';
       case 'Investimento':
-      case 'Investimentos': return TrendingUp;
-      case 'Lazer': return Gamepad2;
-      case 'Mercado': return ShoppingCart;
+      case 'Investimentos': return '📈';
+      case 'Lazer': return '🎮';
+      case 'Mercado':
+      case 'Compras': return '🛍️';
       case 'Pessoais':
-      case 'Lucas': return User;
-      case 'Presente': return Gift;
-      case 'Transporte': return Bus;
-      case 'Viagem': return Plane;
-      case 'Vestuário': return Shirt;
+      case 'Lucas': return '👤';
+      case 'Presente': return '🎁';
+      case 'Viagem':
+      case 'Viagens': return '✈️';
+      case 'Vestuário': return '👕';
+      case 'Serviços': return '💡';
+      case 'Impostos': return '📋';
+      case 'Doações e Ofertas': return '🙌';
+      case 'Pet': return '🐾';
       
       // Receitas
-      case 'Salário': return Banknote;
+      case 'Salário': return '💰';
       case 'Bonificação':
-      case '13°': return Gift;
-      case 'Empréstimo': return HandCoins;
+      case '13°': return '🧧';
+      case 'Empréstimo': return '🤝';
       case 'Vale Alimentação':
-      case 'Vale Refeição': return Utensils;
-      case 'Saldo Anterior': return History;
-      case 'ISK': return Briefcase;
+      case 'Vale Refeição': return '🍱';
+      case 'Saldo Anterior': return '🔙';
+      case 'ISK': return '💼';
+      case 'Periculosidade': return '⚠️';
       
-      default: return Tag;
+      default: return '🏷️';
     }
   };
 
-  // Helper local component for fallback logic
-  const HandCoins = Coins; // Alias
+  const emoji = getEmoji();
 
-  const IconComponent = getIcon();
-
-  return <IconComponent size={size} className={className} />;
+  return (
+    <span 
+      className={`inline-flex items-center justify-center ${className}`} 
+      style={{ fontSize: `${size}px`, lineHeight: 1 }}
+    >
+      {emoji}
+    </span>
+  );
 };
